@@ -1,0 +1,7 @@
+project_id = "cxbljigdkyshvjwapppl"
+
+[functions.create-payment]
+verify_jwt = false
+
+[functions.payment-callback]
+verify_jwt = false
