@@ -4,6 +4,15 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import Index from "./pages/Index";
+import DonatePage from "./pages/DonatePage";
+import ThankYouPage from "./pages/ThankYouPage";
+import PaymentFailedPage from "./pages/PaymentFailedPage";
+import AboutPage from "./pages/AboutPage";
+import TermsPage from "./pages/TermsPage";
+import PrivacyPage from "./pages/PrivacyPage";
+import ContactPage from "./pages/ContactPage";
+import AdminLoginPage from "./pages/AdminLoginPage";
+import AdminDashboard from "./pages/AdminDashboard";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -16,7 +25,15 @@ const App = () => (
       <BrowserRouter>
         <Routes>
           <Route path="/" element={<Index />} />
-          {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
+          <Route path="/donate" element={<DonatePage />} />
+          <Route path="/thank-you" element={<ThankYouPage />} />
+          <Route path="/payment-failed" element={<PaymentFailedPage />} />
+          <Route path="/about" element={<AboutPage />} />
+          <Route path="/terms" element={<TermsPage />} />
+          <Route path="/privacy" element={<PrivacyPage />} />
+          <Route path="/contact" element={<ContactPage />} />
+          <Route path="/admin/login" element={<AdminLoginPage />} />
+          <Route path="/admin" element={<AdminDashboard />} />
           <Route path="*" element={<NotFound />} />
         </Routes>
       </BrowserRouter>
