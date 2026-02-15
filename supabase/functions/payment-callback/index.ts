@@ -1,5 +1,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { crypto } from "https://deno.land/std@0.168.0/crypto/mod.ts";
+import { encode as encodeHex } from "https://deno.land/std@0.168.0/encoding/hex.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -81,8 +83,7 @@ serve(async (req) => {
       DUITKU_MERCHANT_CODE + (amount || "") + merchantOrderId + DUITKU_API_KEY
     );
     const hashBuffer = await crypto.subtle.digest("MD5", signData);
-    const hashArray = Array.from(new Uint8Array(hashBuffer));
-    const expectedSignature = hashArray.map((b) => b.toString(16).padStart(2, "0")).join("");
+    const expectedSignature = new TextDecoder().decode(encodeHex(new Uint8Array(hashBuffer)));
 
     if (receivedSignature && receivedSignature !== expectedSignature) {
       console.error("Signature mismatch for order:", merchantOrderId);
