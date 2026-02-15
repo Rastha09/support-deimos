@@ -1,7 +1,5 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { crypto } from "https://deno.land/std@0.168.0/crypto/mod.ts";
-import { encode as encodeHex } from "https://deno.land/std@0.168.0/encoding/hex.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -53,31 +51,35 @@ serve(async (req) => {
 
     const merchantOrderId = `DEIMOS-${Date.now()}-${Math.random().toString(36).substring(2, 8)}`;
 
-    // Generate MD5 signature
+    // Generate SHA256 signature for POP API: SHA256(merchantCode + timestamp + apiKey)
+    const timestamp = Date.now().toString();
     const encoder = new TextEncoder();
-    const data = encoder.encode(DUITKU_MERCHANT_CODE + merchantOrderId + amount + DUITKU_API_KEY);
-    const hashBuffer = await crypto.subtle.digest("MD5", data);
-    const signature = new TextDecoder().decode(encodeHex(new Uint8Array(hashBuffer)));
+    const signData = encoder.encode(DUITKU_MERCHANT_CODE + timestamp + DUITKU_API_KEY);
+    const hashBuffer = await crypto.subtle.digest("SHA-256", signData);
+    const signature = Array.from(new Uint8Array(hashBuffer)).map((b) => b.toString(16).padStart(2, "0")).join("");
 
-    // Create invoice at Duitku
+    // Create invoice at Duitku POP
     const duitkuPayload = {
-      merchantCode: DUITKU_MERCHANT_CODE,
-      merchantOrderId,
       paymentAmount: amount,
+      merchantOrderId,
       productDetails: "Donasi untuk DEIMOS",
       customerVaName: donorName.trim().substring(0, 50),
       email: email?.trim() || "donor@deimos.id",
       callbackUrl: DUITKU_CALLBACK_URL,
       returnUrl: DUITKU_RETURN_URL,
-      signature,
-      expiryPeriod: 1440, // 24 hours
+      expiryPeriod: 1440,
     };
 
     console.log("Creating Duitku invoice for order:", merchantOrderId);
 
-    const duitkuRes = await fetch("https://passport.duitku.com/webapi/api/merchant/v2/inquiry", {
+    const duitkuRes = await fetch("https://api-sandbox.duitku.com/api/merchant/createInvoice", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        "x-duitku-merchantcode": DUITKU_MERCHANT_CODE,
+        "x-duitku-timestamp": timestamp,
+        "x-duitku-signature": signature,
+      },
       body: JSON.stringify(duitkuPayload),
     });
 
