@@ -7,6 +7,7 @@ import Index from "./pages/Index";
 import DonatePage from "./pages/DonatePage";
 import ThankYouPage from "./pages/ThankYouPage";
 import PaymentFailedPage from "./pages/PaymentFailedPage";
+import PaymentStatusPage from "./pages/PaymentStatusPage";
 import AboutPage from "./pages/AboutPage";
 import TermsPage from "./pages/TermsPage";
 import PrivacyPage from "./pages/PrivacyPage";
@@ -28,6 +29,7 @@ const App = () => (
           <Route path="/donate" element={<DonatePage />} />
           <Route path="/thank-you" element={<ThankYouPage />} />
           <Route path="/payment-failed" element={<PaymentFailedPage />} />
+          <Route path="/payment-status" element={<PaymentStatusPage />} />
           <Route path="/about" element={<AboutPage />} />
           <Route path="/terms" element={<TermsPage />} />
           <Route path="/privacy" element={<PrivacyPage />} />

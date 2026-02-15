@@ -59,6 +59,8 @@ serve(async (req) => {
     const signature = Array.from(new Uint8Array(hashBuffer)).map((b) => b.toString(16).padStart(2, "0")).join("");
 
     // Create invoice at Duitku POP
+    // Append merchantOrderId to returnUrl so the status page can check payment status
+    const returnUrlWithOrder = `${DUITKU_RETURN_URL}?merchantOrderId=${merchantOrderId}`;
     const duitkuPayload = {
       paymentAmount: amount,
       merchantOrderId,
@@ -66,7 +68,7 @@ serve(async (req) => {
       customerVaName: donorName.trim().substring(0, 50),
       email: email?.trim() || "donor@deimos.id",
       callbackUrl: DUITKU_CALLBACK_URL,
-      returnUrl: DUITKU_RETURN_URL,
+      returnUrl: returnUrlWithOrder,
       expiryPeriod: 1440,
     };
 
