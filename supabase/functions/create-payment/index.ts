@@ -1,5 +1,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { crypto } from "https://deno.land/std@0.168.0/crypto/mod.ts";
+import { encode as encodeHex } from "https://deno.land/std@0.168.0/encoding/hex.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -55,8 +57,7 @@ serve(async (req) => {
     const encoder = new TextEncoder();
     const data = encoder.encode(DUITKU_MERCHANT_CODE + merchantOrderId + amount + DUITKU_API_KEY);
     const hashBuffer = await crypto.subtle.digest("MD5", data);
-    const hashArray = Array.from(new Uint8Array(hashBuffer));
-    const signature = hashArray.map((b) => b.toString(16).padStart(2, "0")).join("");
+    const signature = new TextDecoder().decode(encodeHex(new Uint8Array(hashBuffer)));
 
     // Create invoice at Duitku
     const duitkuPayload = {
