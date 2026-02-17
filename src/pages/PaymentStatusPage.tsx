@@ -1,17 +1,22 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useSearchParams, Link } from "react-router-dom";
 import { motion } from "framer-motion";
 import { CheckCircle, XCircle, Clock, ArrowLeft, RefreshCw, Heart } from "lucide-react";
+import { z } from "zod";
 import { supabase } from "@/integrations/supabase/client";
 import Footer from "@/components/Footer";
 import ParticleBackground from "@/components/ParticleBackground";
+
+const DonationStatusSchema = z.object({
+  status: z.string(),
+});
 
 type PaymentStatus = "loading" | "PAID" | "PENDING" | "FAILED" | "unknown";
 
 const StatusCard = ({ children }: { children: React.ReactNode }) => (
   <div className="min-h-screen bg-background flex flex-col relative overflow-hidden">
-    <div className="absolute inset-0 bg-gradient-hero" />
-    <ParticleBackground count={30} color="200, 170, 90" connectionDistance={100} />
+    <div className="absolute inset-0 bg-gradient-hero opacity-50" />
+    <ParticleBackground count={80} color="200, 170, 90" maxOpacity={0.8} connectionDistance={150} />
     <div className="relative z-10 flex-1 flex items-center justify-center px-4">
       {children}
     </div>
@@ -25,6 +30,7 @@ const PaymentStatusPage = () => {
   const [searchParams] = useSearchParams();
   const merchantOrderId = searchParams.get("merchantOrderId");
   const [status, setStatus] = useState<PaymentStatus>("loading");
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useEffect(() => {
     if (!merchantOrderId) {
@@ -44,16 +50,31 @@ const PaymentStatusPage = () => {
         return;
       }
 
-      if (data.status === "PAID" || data.status === "SUCCESS") {
+      const parsed = DonationStatusSchema.safeParse(data);
+      if (!parsed.success) {
+        setStatus("unknown");
+        return;
+      }
+
+      const s = parsed.data.status;
+      if (s === "PAID" || s === "SUCCESS") {
         setStatus("PAID");
-      } else if (data.status === "FAILED" || data.status === "EXPIRED") {
+        // Stop polling on final status
+        if (intervalRef.current) clearInterval(intervalRef.current);
+      } else if (s === "FAILED" || s === "EXPIRED") {
         setStatus("FAILED");
+        if (intervalRef.current) clearInterval(intervalRef.current);
       } else {
         setStatus("PENDING");
       }
     };
 
     checkStatus();
+    intervalRef.current = setInterval(checkStatus, 2000);
+
+    return () => {
+      if (intervalRef.current) clearInterval(intervalRef.current);
+    };
   }, [merchantOrderId]);
 
   if (status === "loading") {
@@ -74,7 +95,7 @@ const PaymentStatusPage = () => {
   if (status === "PAID") {
     return (
       <StatusCard>
-        <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} className="text-center max-w-md">
+        <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} className="text-center max-w-md bg-card/40 backdrop-blur-md border border-border/30 rounded-2xl p-8">
           <motion.div
             initial={{ scale: 0 }}
             animate={{ scale: 1 }}
@@ -103,7 +124,7 @@ const PaymentStatusPage = () => {
   if (status === "FAILED") {
     return (
       <StatusCard>
-        <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} className="text-center max-w-md">
+        <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} className="text-center max-w-md bg-card/40 backdrop-blur-md border border-border/30 rounded-2xl p-8">
           <motion.div
             initial={{ scale: 0 }}
             animate={{ scale: 1 }}
@@ -132,16 +153,17 @@ const PaymentStatusPage = () => {
   // PENDING or unknown
   return (
     <StatusCard>
-      <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} className="text-center max-w-md">
+      <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} className="text-center max-w-md bg-card/40 backdrop-blur-md border border-border/30 rounded-2xl p-8">
         <motion.div
           initial={{ scale: 0 }}
           animate={{ scale: 1 }}
           transition={{ delay: 0.2, type: "spring", stiffness: 200 }}
           className="w-24 h-24 mx-auto mb-8 rounded-2xl bg-amber-500/10 flex items-center justify-center"
         >
-          <Clock className="w-12 h-12 text-amber-500" />
+          <Clock className="w-12 h-12 text-amber-500 animate-spin" style={{ animationDuration: '3s' }} />
         </motion.div>
         <h1 className="text-3xl font-bold font-display mb-3">Pembayaran Pending</h1>
+        <p className="text-xs text-muted-foreground/60 mb-2 animate-pulse">Status diperbarui otomatis setiap 2 detik...</p>
         <p className="text-muted-foreground mb-8 leading-relaxed text-sm">
           Pembayaran belum selesai. Jika kamu sudah membayar, status akan diperbarui secara otomatis.
         </p>
