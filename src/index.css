@@ -1,9 +1,18 @@
+/* ================================================
+   IMPORT GOOGLE FONTS HARUS DI ATAS
+   ================================================ */
+@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Inter:wght@300;400;500;600&display=swap');
+
+/* ================================================
+   TAILWIND DIRECTIVES
+   ================================================ */
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
-@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Inter:wght@300;400;500;600&display=swap');
-
+/* ================================================
+   CUSTOM LAYER BASE
+   ================================================ */
 @layer base {
   :root {
     --background: 220 20% 7%;
@@ -65,6 +74,9 @@
   }
 }
 
+/* ================================================
+   CUSTOM LAYER UTILITIES
+   ================================================ */
 @layer utilities {
   .text-gradient-gold {
     @apply bg-clip-text text-transparent;
