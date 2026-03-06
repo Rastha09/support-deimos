@@ -21,7 +21,7 @@ const TermsPage = () => {
           <p>Website ini bukan lembaga crowdfunding atau marketplace. Ini adalah halaman pribadi untuk menerima dukungan sukarela.</p>
           
           <h2 className="text-lg font-semibold text-foreground">4. Pemrosesan Pembayaran</h2>
-          <p>Pembayaran diproses oleh Duitku sebagai payment gateway resmi. Semua transaksi mengikuti ketentuan dan kebijakan Duitku.</p>
+          <p>Pembayaran diproses melalui QRISMU sebagai payment gateway resmi. Semua transaksi mengikuti ketentuan dan kebijakan QRISMU.</p>
           
           <h2 className="text-lg font-semibold text-foreground">5. Penggunaan Dana</h2>
           <p>Seluruh dana yang diterima akan digunakan untuk mendukung kegiatan kreatif dan produksi konten DEIMOS.</p>

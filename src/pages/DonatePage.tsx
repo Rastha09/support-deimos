@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { motion } from "framer-motion";
-import { Heart, Loader2, Send, ArrowLeft } from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
+import { Heart, Loader2, Send, ArrowLeft, QrCode, Clock, Copy, Check } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
@@ -29,6 +29,16 @@ const DonatePage = () => {
   const [customAmount, setCustomAmount] = useState("");
   const [errors, setErrors] = useState<Record<string, string>>({});
 
+  // QRIS state
+  const [qrisData, setQrisData] = useState<{
+    qrisBase64: string;
+    orderId: string;
+    transactionId: string;
+    expiresAt: string;
+  } | null>(null);
+  const [paymentStatus, setPaymentStatus] = useState<string>("pending");
+  const [polling, setPolling] = useState(false);
+
   const selectedAmount = form.amount || (customAmount ? parseInt(customAmount) : 0);
 
   const validate = () => {
@@ -40,9 +50,41 @@ const DonatePage = () => {
     if (form.message.length > 500) e.message = "Pesan maksimal 500 karakter";
     if (!selectedAmount || selectedAmount < 10000)
       e.amount = "Minimal donasi Rp10.000";
-    if (selectedAmount > 100000000) e.amount = "Nominal terlalu besar";
+    if (selectedAmount > 10000000) e.amount = "Maksimal donasi Rp10.000.000";
     setErrors(e);
     return Object.keys(e).length === 0;
+  };
+
+  const startPolling = (transactionId: string) => {
+    setPolling(true);
+    const interval = setInterval(async () => {
+      try {
+        const { data } = await supabase
+          .from("donations")
+          .select("status")
+          .eq("merchant_order_id", transactionId)
+          .maybeSingle();
+
+        if (data?.status === "SUCCESS") {
+          clearInterval(interval);
+          setPaymentStatus("paid");
+          setPolling(false);
+          navigate("/payment-status?merchantOrderId=" + transactionId);
+        } else if (data?.status === "FAILED" || data?.status === "EXPIRED") {
+          clearInterval(interval);
+          setPaymentStatus("failed");
+          setPolling(false);
+        }
+      } catch (err) {
+        console.error("Polling error:", err);
+      }
+    }, 3000);
+
+    // Stop polling after 30 minutes
+    setTimeout(() => {
+      clearInterval(interval);
+      setPolling(false);
+    }, 30 * 60 * 1000);
   };
 
   const handleSubmit = async () => {
@@ -59,10 +101,17 @@ const DonatePage = () => {
       });
 
       if (error) throw error;
-      if (data?.paymentUrl) {
-        window.location.href = data.paymentUrl;
+      if (data?.qrisBase64) {
+        setQrisData({
+          qrisBase64: data.qrisBase64,
+          orderId: data.orderId,
+          transactionId: data.transactionId,
+          expiresAt: data.expiresAt,
+        });
+        setPaymentStatus("pending");
+        startPolling(data.orderId);
       } else {
-        throw new Error("Tidak dapat membuat pembayaran");
+        throw new Error("Tidak dapat membuat pembayaran QRIS");
       }
     } catch (err: any) {
       toast({
@@ -75,156 +124,234 @@ const DonatePage = () => {
     }
   };
 
+  const handleBack = () => {
+    setQrisData(null);
+    setPaymentStatus("pending");
+    setPolling(false);
+  };
+
   return (
     <div className="min-h-screen bg-background flex flex-col relative overflow-hidden">
-      {/* Gradient overlay */}
       <div className="absolute inset-0 bg-gradient-hero" />
       <ParticleBackground count={35} color="200, 170, 90" connectionDistance={100} />
 
       <div className="relative z-10 flex-1 flex items-center justify-center px-4 py-16">
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6 }}
-          className="w-full max-w-lg"
-        >
-          {/* Back button */}
-          <Link
-            to="/"
-            className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-primary transition-colors mb-6"
-          >
-            <ArrowLeft className="w-4 h-4" /> Kembali
-          </Link>
-
-          <div className="text-center mb-8">
-            <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full border border-primary/20 bg-primary/5 backdrop-blur-sm mb-4">
-              <Heart className="w-3.5 h-3.5 text-primary" />
-              <span className="text-xs tracking-[0.15em] uppercase text-primary font-medium">Donasi</span>
-            </div>
-            <h1 className="text-3xl font-bold font-display">
-              Dukung <span className="text-gradient-gold">DEIMOS</span>
-            </h1>
-            <p className="text-muted-foreground mt-2 text-sm">
-              Setiap dukungan sangat berarti untuk karya saya.
-            </p>
-          </div>
-
-          <div className="card-glass rounded-2xl p-6 md:p-8 space-y-5">
-            {/* Nama */}
-            <div>
-              <Label htmlFor="donorName" className="text-sm font-medium">Nama Donatur *</Label>
-              <Input
-                id="donorName"
-                placeholder="Nama kamu"
-                maxLength={100}
-                value={form.donorName}
-                onChange={(e) => setForm({ ...form, donorName: e.target.value })}
-                className="mt-1.5 bg-secondary/50 border-border/50 focus:border-primary/50 transition-colors"
-              />
-              {errors.donorName && <p className="text-xs text-destructive mt-1">{errors.donorName}</p>}
-            </div>
-
-            {/* Email */}
-            <div>
-              <Label htmlFor="email" className="text-sm font-medium">Email (opsional)</Label>
-              <Input
-                id="email"
-                type="email"
-                placeholder="email@contoh.com"
-                maxLength={255}
-                value={form.email}
-                onChange={(e) => setForm({ ...form, email: e.target.value })}
-                className="mt-1.5 bg-secondary/50 border-border/50 focus:border-primary/50 transition-colors"
-              />
-              {errors.email && <p className="text-xs text-destructive mt-1">{errors.email}</p>}
-            </div>
-
-            {/* Pesan */}
-            <div>
-              <Label htmlFor="message" className="text-sm font-medium">Pesan Dukungan</Label>
-              <Textarea
-                id="message"
-                placeholder="Tulis pesan dukunganmu..."
-                maxLength={500}
-                rows={3}
-                value={form.message}
-                onChange={(e) => setForm({ ...form, message: e.target.value })}
-                className="mt-1.5 bg-secondary/50 border-border/50 resize-none focus:border-primary/50 transition-colors"
-              />
-              {errors.message && <p className="text-xs text-destructive mt-1">{errors.message}</p>}
-              <p className="text-xs text-muted-foreground mt-1 text-right">{form.message.length}/500</p>
-            </div>
-
-            {/* Nominal */}
-            <div>
-              <Label className="text-sm font-medium">Nominal Donasi *</Label>
-              <div className="grid grid-cols-3 gap-2 mt-2">
-                {NOMINAL_OPTIONS.map((n) => (
-                  <motion.button
-                    key={n}
-                    type="button"
-                    whileTap={{ scale: 0.95 }}
-                    onClick={() => {
-                      setForm({ ...form, amount: n });
-                      setCustomAmount("");
-                    }}
-                    className={`py-2.5 px-3 rounded-xl text-sm font-medium transition-all duration-200 ${
-                      form.amount === n
-                        ? "bg-primary text-primary-foreground shadow-[0_0_20px_-5px_hsl(38_90%_55%_/_0.3)]"
-                        : "bg-secondary/50 text-secondary-foreground hover:bg-secondary/80 border border-border/50"
-                    }`}
-                  >
-                    {formatRupiah(n)}
-                  </motion.button>
-                ))}
-              </div>
-              <div className="mt-2.5">
-                <Input
-                  type="number"
-                  placeholder="Nominal lainnya (min. 10.000)"
-                  min={10000}
-                  value={customAmount}
-                  onChange={(e) => {
-                    setCustomAmount(e.target.value);
-                    setForm({ ...form, amount: 0 });
-                  }}
-                  className="bg-secondary/50 border-border/50 focus:border-primary/50 transition-colors"
-                />
-              </div>
-              {errors.amount && <p className="text-xs text-destructive mt-1">{errors.amount}</p>}
-              {selectedAmount >= 10000 && (
-                <motion.p
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  className="text-sm text-primary mt-2 font-semibold"
-                >
-                  Total: {formatRupiah(selectedAmount)}
-                </motion.p>
-              )}
-            </div>
-
-            {/* Divider */}
-            <div className="h-px bg-border/30" />
-
-            {/* Submit */}
-            <motion.button
-              onClick={handleSubmit}
-              disabled={loading}
-              className="w-full flex items-center justify-center gap-2.5 py-3.5 rounded-xl bg-primary text-primary-foreground font-semibold text-base hover:shadow-[0_0_30px_-5px_hsl(38_90%_55%_/_0.35)] transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
-              whileHover={{ scale: 1.01 }}
-              whileTap={{ scale: 0.98 }}
+        <AnimatePresence mode="wait">
+          {qrisData ? (
+            <motion.div
+              key="qris"
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -20 }}
+              className="w-full max-w-md"
             >
-              {loading ? (
-                <Loader2 className="w-5 h-5 animate-spin" />
-              ) : (
-                <>
-                  <Send className="w-4 h-4" />
-                  Lanjutkan Pembayaran
-                </>
-              )}
-            </motion.button>
-          </div>
-        </motion.div>
+              <button
+                onClick={handleBack}
+                className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-primary transition-colors mb-6"
+              >
+                <ArrowLeft className="w-4 h-4" /> Kembali
+              </button>
+
+              <div className="card-glass rounded-2xl p-6 md:p-8 text-center space-y-5">
+                <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full border border-primary/20 bg-primary/5 backdrop-blur-sm">
+                  <QrCode className="w-3.5 h-3.5 text-primary" />
+                  <span className="text-xs tracking-[0.15em] uppercase text-primary font-medium">Scan QRIS</span>
+                </div>
+
+                <h2 className="text-2xl font-bold font-display">
+                  {formatRupiah(selectedAmount)}
+                </h2>
+
+                {/* QR Code Display */}
+                <div className="bg-white rounded-xl p-4 inline-block mx-auto">
+                  <img
+                    src={qrisData.qrisBase64}
+                    alt="QRIS Payment QR Code"
+                    className="w-56 h-56 mx-auto"
+                  />
+                </div>
+
+                <p className="text-muted-foreground text-sm">
+                  Scan QR code di atas menggunakan aplikasi e-wallet atau mobile banking kamu
+                </p>
+
+                {/* Status indicator */}
+                <div className="flex items-center justify-center gap-2 text-sm">
+                  {paymentStatus === "pending" && (
+                    <>
+                      <Clock className="w-4 h-4 text-amber-500 animate-spin" style={{ animationDuration: '3s' }} />
+                      <span className="text-muted-foreground">Menunggu pembayaran...</span>
+                    </>
+                  )}
+                  {paymentStatus === "paid" && (
+                    <span className="text-primary font-medium">✓ Pembayaran berhasil!</span>
+                  )}
+                  {paymentStatus === "failed" && (
+                    <span className="text-destructive font-medium">Pembayaran gagal/expired</span>
+                  )}
+                </div>
+
+                {polling && (
+                  <p className="text-xs text-muted-foreground/60 animate-pulse">
+                    Status diperbarui otomatis...
+                  </p>
+                )}
+
+                <div className="text-xs text-muted-foreground/50 pt-2 border-t border-border/20">
+                  Order ID: {qrisData.orderId}
+                </div>
+              </div>
+            </motion.div>
+          ) : (
+            <motion.div
+              key="form"
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -20 }}
+              transition={{ duration: 0.6 }}
+              className="w-full max-w-lg"
+            >
+              <Link
+                to="/"
+                className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-primary transition-colors mb-6"
+              >
+                <ArrowLeft className="w-4 h-4" /> Kembali
+              </Link>
+
+              <div className="text-center mb-8">
+                <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full border border-primary/20 bg-primary/5 backdrop-blur-sm mb-4">
+                  <Heart className="w-3.5 h-3.5 text-primary" />
+                  <span className="text-xs tracking-[0.15em] uppercase text-primary font-medium">Donasi</span>
+                </div>
+                <h1 className="text-3xl font-bold font-display">
+                  Dukung <span className="text-gradient-gold">DEIMOS</span>
+                </h1>
+                <p className="text-muted-foreground mt-2 text-sm">
+                  Setiap dukungan sangat berarti untuk karya saya.
+                </p>
+              </div>
+
+              <div className="card-glass rounded-2xl p-6 md:p-8 space-y-5">
+                {/* Nama */}
+                <div>
+                  <Label htmlFor="donorName" className="text-sm font-medium">Nama Donatur *</Label>
+                  <Input
+                    id="donorName"
+                    placeholder="Nama kamu"
+                    maxLength={100}
+                    value={form.donorName}
+                    onChange={(e) => setForm({ ...form, donorName: e.target.value })}
+                    className="mt-1.5 bg-secondary/50 border-border/50 focus:border-primary/50 transition-colors"
+                  />
+                  {errors.donorName && <p className="text-xs text-destructive mt-1">{errors.donorName}</p>}
+                </div>
+
+                {/* Email */}
+                <div>
+                  <Label htmlFor="email" className="text-sm font-medium">Email (opsional)</Label>
+                  <Input
+                    id="email"
+                    type="email"
+                    placeholder="email@contoh.com"
+                    maxLength={255}
+                    value={form.email}
+                    onChange={(e) => setForm({ ...form, email: e.target.value })}
+                    className="mt-1.5 bg-secondary/50 border-border/50 focus:border-primary/50 transition-colors"
+                  />
+                  {errors.email && <p className="text-xs text-destructive mt-1">{errors.email}</p>}
+                </div>
+
+                {/* Pesan */}
+                <div>
+                  <Label htmlFor="message" className="text-sm font-medium">Pesan Dukungan</Label>
+                  <Textarea
+                    id="message"
+                    placeholder="Tulis pesan dukunganmu..."
+                    maxLength={500}
+                    rows={3}
+                    value={form.message}
+                    onChange={(e) => setForm({ ...form, message: e.target.value })}
+                    className="mt-1.5 bg-secondary/50 border-border/50 resize-none focus:border-primary/50 transition-colors"
+                  />
+                  {errors.message && <p className="text-xs text-destructive mt-1">{errors.message}</p>}
+                  <p className="text-xs text-muted-foreground mt-1 text-right">{form.message.length}/500</p>
+                </div>
+
+                {/* Nominal */}
+                <div>
+                  <Label className="text-sm font-medium">Nominal Donasi *</Label>
+                  <div className="grid grid-cols-3 gap-2 mt-2">
+                    {NOMINAL_OPTIONS.map((n) => (
+                      <motion.button
+                        key={n}
+                        type="button"
+                        whileTap={{ scale: 0.95 }}
+                        onClick={() => {
+                          setForm({ ...form, amount: n });
+                          setCustomAmount("");
+                        }}
+                        className={`py-2.5 px-3 rounded-xl text-sm font-medium transition-all duration-200 ${
+                          form.amount === n
+                            ? "bg-primary text-primary-foreground shadow-[0_0_20px_-5px_hsl(38_90%_55%_/_0.3)]"
+                            : "bg-secondary/50 text-secondary-foreground hover:bg-secondary/80 border border-border/50"
+                        }`}
+                      >
+                        {formatRupiah(n)}
+                      </motion.button>
+                    ))}
+                  </div>
+                  <div className="mt-2.5">
+                    <Input
+                      type="number"
+                      placeholder="Nominal lainnya (min. 10.000)"
+                      min={10000}
+                      max={10000000}
+                      value={customAmount}
+                      onChange={(e) => {
+                        setCustomAmount(e.target.value);
+                        setForm({ ...form, amount: 0 });
+                      }}
+                      className="bg-secondary/50 border-border/50 focus:border-primary/50 transition-colors"
+                    />
+                  </div>
+                  {errors.amount && <p className="text-xs text-destructive mt-1">{errors.amount}</p>}
+                  {selectedAmount >= 10000 && (
+                    <motion.p
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      className="text-sm text-primary mt-2 font-semibold"
+                    >
+                      Total: {formatRupiah(selectedAmount)}
+                    </motion.p>
+                  )}
+                </div>
+
+                <div className="h-px bg-border/30" />
+
+                <motion.button
+                  onClick={handleSubmit}
+                  disabled={loading}
+                  className="w-full flex items-center justify-center gap-2.5 py-3.5 rounded-xl bg-primary text-primary-foreground font-semibold text-base hover:shadow-[0_0_30px_-5px_hsl(38_90%_55%_/_0.35)] transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
+                  whileHover={{ scale: 1.01 }}
+                  whileTap={{ scale: 0.98 }}
+                >
+                  {loading ? (
+                    <Loader2 className="w-5 h-5 animate-spin" />
+                  ) : (
+                    <>
+                      <QrCode className="w-4 h-4" />
+                      Buat QRIS Pembayaran
+                    </>
+                  )}
+                </motion.button>
+
+                <p className="text-xs text-center text-muted-foreground/60">
+                  Pembayaran diproses melalui QRISMU — didukung semua bank & e-wallet
+                </p>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
       <div className="relative z-10">
         <Footer />
