@@ -17,41 +17,56 @@ export type Database = {
       donations: {
         Row: {
           amount: number
+          amount_received: number | null
           created_at: string
           donor_name: string
           email: string | null
+          fee: number | null
           id: string
           merchant_order_id: string
           message: string | null
+          paid_at: string | null
           payment_url: string | null
-          reference: string
+          qris_url: string | null
+          reference: string | null
           status: string
+          transaction_id: string | null
           updated_at: string
         }
         Insert: {
           amount: number
+          amount_received?: number | null
           created_at?: string
           donor_name: string
           email?: string | null
+          fee?: number | null
           id?: string
           merchant_order_id: string
           message?: string | null
+          paid_at?: string | null
           payment_url?: string | null
-          reference: string
+          qris_url?: string | null
+          reference?: string | null
           status?: string
+          transaction_id?: string | null
           updated_at?: string
         }
         Update: {
           amount?: number
+          amount_received?: number | null
           created_at?: string
           donor_name?: string
           email?: string | null
+          fee?: number | null
           id?: string
           merchant_order_id?: string
           message?: string | null
+          paid_at?: string | null
           payment_url?: string | null
-          reference?: string
+          qris_url?: string | null
+          reference?: string | null
           status?: string
+          transaction_id?: string | null
           updated_at?: string
         }
         Relationships: []
