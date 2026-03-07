@@ -243,6 +243,18 @@ const DonatePage = () => {
                   )}
                 </div>
 
+                {/* Save button */}
+                {paymentStatus === "pending" && (
+                  <motion.button
+                    onClick={handleSaveQris}
+                    className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-secondary text-secondary-foreground font-medium text-sm hover:bg-secondary/80 transition-colors"
+                    whileTap={{ scale: 0.95 }}
+                  >
+                    <Download className="w-4 h-4" />
+                    Simpan QR Code
+                  </motion.button>
+                )}
+
                 {polling && (
                   <p className="text-xs text-muted-foreground/60 animate-pulse">
                     Status diperbarui otomatis...
