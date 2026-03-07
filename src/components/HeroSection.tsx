@@ -1,4 +1,4 @@
-import { Heart, ArrowRight, Sparkles } from "lucide-react";
+import { Heart, ArrowRight, Sparkles, ChevronDown } from "lucide-react";
 import { Link } from "react-router-dom";
 import { motion } from "framer-motion";
 import heroBg from "@/assets/hero-bg.jpg";
@@ -12,30 +12,37 @@ const HeroSection = () => {
         <img
           src={heroBg}
           alt="DEIMOS cosmic background"
-          className="w-full h-full object-cover opacity-30"
+          className="w-full h-full object-cover opacity-25 scale-105"
           loading="eager"
         />
-        <div className="absolute inset-0 bg-gradient-to-b from-background/60 via-background/80 to-background" />
+        <div className="absolute inset-0 bg-gradient-to-b from-background/40 via-background/70 to-background" />
+        <div className="absolute inset-0 bg-gradient-to-r from-background/50 via-transparent to-background/50" />
       </div>
 
       {/* Particle overlay */}
       <ParticleBackground count={60} color="200, 170, 90" connectionDistance={130} />
 
+      {/* Subtle grid overlay */}
+      <div className="absolute inset-0 opacity-[0.03]" style={{
+        backgroundImage: `linear-gradient(hsl(var(--foreground)) 1px, transparent 1px), linear-gradient(90deg, hsl(var(--foreground)) 1px, transparent 1px)`,
+        backgroundSize: '60px 60px'
+      }} />
+
       <div className="relative z-10 max-w-3xl mx-auto px-6 text-center">
         <motion.div
           initial={{ opacity: 0, y: 40 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 1, ease: "easeOut" }}
+          transition={{ duration: 1, ease: [0.16, 1, 0.3, 1] }}
         >
           {/* Badge */}
           <motion.div
-            initial={{ opacity: 0, scale: 0.8 }}
-            animate={{ opacity: 1, scale: 1 }}
-            transition={{ delay: 0.3, duration: 0.5 }}
-            className="inline-flex items-center gap-2 px-5 py-2 rounded-full border border-primary/25 bg-primary/5 backdrop-blur-sm mb-10"
+            initial={{ opacity: 0, scale: 0.8, y: 10 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            transition={{ delay: 0.3, duration: 0.6 }}
+            className="inline-flex items-center gap-2.5 px-5 py-2 rounded-full border border-primary/20 bg-primary/5 backdrop-blur-md mb-10"
           >
             <Sparkles className="w-3.5 h-3.5 text-primary" />
-            <span className="text-xs tracking-[0.2em] uppercase text-primary/90 font-medium">
+            <span className="text-[11px] tracking-[0.2em] uppercase text-primary/90 font-medium">
               Support My Work
             </span>
           </motion.div>
@@ -44,6 +51,14 @@ const HeroSection = () => {
           <h1 className="text-7xl md:text-9xl font-bold tracking-tighter mb-6">
             <span className="text-gradient-gold">DEIMOS</span>
           </h1>
+
+          {/* Subtle decorative line */}
+          <motion.div
+            initial={{ scaleX: 0 }}
+            animate={{ scaleX: 1 }}
+            transition={{ delay: 0.4, duration: 0.8 }}
+            className="w-20 h-px bg-gradient-to-r from-transparent via-primary/40 to-transparent mx-auto mb-6"
+          />
 
           {/* Tagline */}
           <motion.div
@@ -62,10 +77,11 @@ const HeroSection = () => {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.7, duration: 0.6 }}
+            className="flex flex-col items-center gap-4"
           >
             <Link to="/donate">
               <motion.button
-                className="group relative inline-flex items-center gap-3 px-10 py-4.5 rounded-2xl bg-primary text-primary-foreground font-semibold text-lg overflow-hidden transition-all duration-300 hover:shadow-[0_0_40px_-5px_hsl(38_90%_55%_/_0.4)]"
+                className="group relative inline-flex items-center gap-3 px-10 py-4 rounded-2xl bg-primary text-primary-foreground font-semibold text-lg overflow-hidden transition-all duration-300 shadow-[0_4px_30px_-8px_hsl(var(--primary)/0.35)] hover:shadow-[0_4px_40px_-5px_hsl(var(--primary)/0.5)]"
                 whileHover={{ scale: 1.03 }}
                 whileTap={{ scale: 0.97 }}
               >
@@ -78,6 +94,21 @@ const HeroSection = () => {
           </motion.div>
         </motion.div>
       </div>
+
+      {/* Scroll indicator */}
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ delay: 1.2 }}
+        className="absolute bottom-8 left-1/2 -translate-x-1/2 z-10"
+      >
+        <motion.div
+          animate={{ y: [0, 6, 0] }}
+          transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
+        >
+          <ChevronDown className="w-5 h-5 text-muted-foreground/30" />
+        </motion.div>
+      </motion.div>
 
       {/* Bottom fade */}
       <div className="absolute bottom-0 left-0 right-0 h-40 bg-gradient-to-t from-background to-transparent" />
