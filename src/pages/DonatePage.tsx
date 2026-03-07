@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
-import { Heart, Loader2, Send, ArrowLeft, QrCode, Clock, Copy, Check } from "lucide-react";
+import { Heart, Loader2, Send, ArrowLeft, QrCode, Clock, Copy, Check, Download } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
