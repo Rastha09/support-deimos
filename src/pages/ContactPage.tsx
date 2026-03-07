@@ -1,55 +1,53 @@
-import { ArrowLeft, Send, Users } from "lucide-react";
-import { Link } from "react-router-dom";
-import Footer from "@/components/Footer";
+import { Send, Users, Mail, ExternalLink } from "lucide-react";
+import PageShell from "@/components/PageShell";
+
+const contacts = [
+  {
+    icon: Send,
+    label: "Telegram Personal",
+    value: "@Dms_96",
+    href: "https://t.me/Dms_96",
+    color: "text-primary",
+    bgColor: "bg-primary/10",
+  },
+  {
+    icon: Users,
+    label: "Grup Telegram",
+    value: "DEIMOS Public",
+    href: "https://t.me/deimos_public",
+    color: "text-primary",
+    bgColor: "bg-primary/10",
+  },
+];
 
 const ContactPage = () => {
   return (
-    <div className="min-h-screen bg-gradient-hero flex flex-col">
-      <div className="flex-1 max-w-2xl mx-auto px-6 py-16">
-        <Link to="/" className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-primary transition-colors mb-8">
-          <ArrowLeft className="w-4 h-4" /> Kembali
-        </Link>
-        <h1 className="text-3xl font-bold font-display text-gradient-gold mb-6">Kontak</h1>
-        <div className="card-glass rounded-2xl p-6 space-y-6">
-          <p className="text-secondary-foreground">
-            Hubungi saya melalui platform berikut:
-          </p>
+    <PageShell title="Kontak" badge="Hubungi" badgeIcon={<Mail className="w-3 h-3 text-primary" />}>
+      <div className="space-y-3">
+        <p className="text-muted-foreground text-sm mb-5">
+          Hubungi saya melalui platform berikut:
+        </p>
 
-          <div className="space-y-4">
-            <a
-              href="https://t.me/Dms_96"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex items-center gap-4 p-4 rounded-xl bg-secondary/50 border border-border/50 hover:border-primary/30 transition-colors group"
-            >
-              <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center">
-                <Send className="w-5 h-5 text-primary" />
-              </div>
-              <div>
-                <p className="font-medium text-foreground group-hover:text-primary transition-colors">Telegram Personal</p>
-                <p className="text-sm text-muted-foreground">@Dms_96</p>
-              </div>
-            </a>
-
-            <a
-              href="https://t.me/deimos_public"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex items-center gap-4 p-4 rounded-xl bg-secondary/50 border border-border/50 hover:border-primary/30 transition-colors group"
-            >
-              <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center">
-                <Users className="w-5 h-5 text-primary" />
-              </div>
-              <div>
-                <p className="font-medium text-foreground group-hover:text-primary transition-colors">Grup Telegram</p>
-                <p className="text-sm text-muted-foreground">DEIMOS Public</p>
-              </div>
-            </a>
-          </div>
-        </div>
+        {contacts.map((c) => (
+          <a
+            key={c.href}
+            href={c.href}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="group flex items-center gap-4 p-5 rounded-2xl card-glass hover:border-primary/25 hover:bg-card/60 transition-all duration-300"
+          >
+            <div className={`w-12 h-12 rounded-xl ${c.bgColor} flex items-center justify-center group-hover:shadow-[0_0_16px_-4px_hsl(var(--primary)/0.25)] transition-all duration-300`}>
+              <c.icon className={`w-5 h-5 ${c.color}`} />
+            </div>
+            <div className="flex-1">
+              <p className="font-medium text-foreground group-hover:text-primary transition-colors text-[15px]">{c.label}</p>
+              <p className="text-sm text-muted-foreground">{c.value}</p>
+            </div>
+            <ExternalLink className="w-4 h-4 text-muted-foreground/30 group-hover:text-primary/50 transition-colors" />
+          </a>
+        ))}
       </div>
-      <Footer />
-    </div>
+    </PageShell>
   );
 };
 
