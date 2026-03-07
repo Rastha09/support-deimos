@@ -209,11 +209,19 @@ const DonatePage = () => {
                 {/* QR Code Display */}
                 <div className="bg-white rounded-xl p-4 inline-block mx-auto">
                   <img
+                    ref={qrisRef}
                     src={qrisData.qrisBase64}
                     alt="QRIS Payment QR Code"
                     className="w-56 h-56 mx-auto"
                   />
                 </div>
+
+                {/* Countdown timer */}
+                {paymentStatus === "pending" && (
+                  <div className={`text-lg font-bold font-display ${countdown <= 60 ? "text-destructive" : "text-primary"}`}>
+                    {formatCountdown(countdown)}
+                  </div>
+                )}
 
                 <p className="text-muted-foreground text-sm">
                   Scan QR code di atas menggunakan aplikasi e-wallet atau mobile banking kamu
