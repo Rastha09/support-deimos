@@ -38,6 +38,50 @@ const DonatePage = () => {
   } | null>(null);
   const [paymentStatus, setPaymentStatus] = useState<string>("pending");
   const [polling, setPolling] = useState(false);
+  const [countdown, setCountdown] = useState(300); // 5 minutes in seconds
+  const qrisRef = useRef<HTMLImageElement>(null);
+
+  // Countdown timer
+  useEffect(() => {
+    if (!qrisData || paymentStatus !== "pending") return;
+    setCountdown(300);
+    const timer = setInterval(() => {
+      setCountdown((prev) => {
+        if (prev <= 1) {
+          clearInterval(timer);
+          setPaymentStatus("failed");
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [qrisData, paymentStatus]);
+
+  const formatCountdown = (s: number) => {
+    const m = Math.floor(s / 60);
+    const sec = s % 60;
+    return `${m}:${sec.toString().padStart(2, "0")}`;
+  };
+
+  const handleSaveQris = useCallback(async () => {
+    if (!qrisData?.qrisBase64) return;
+    try {
+      const res = await fetch(qrisData.qrisBase64);
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `QRIS-${qrisData.orderId}.png`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      toast({ title: "Berhasil", description: "QR code berhasil disimpan" });
+    } catch {
+      toast({ title: "Gagal", description: "Tidak dapat menyimpan gambar", variant: "destructive" });
+    }
+  }, [qrisData, toast]);
 
   const selectedAmount = form.amount || (customAmount ? parseInt(customAmount) : 0);
 
