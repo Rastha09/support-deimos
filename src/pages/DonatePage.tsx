@@ -1,7 +1,7 @@
-import { useState } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
-import { Heart, Loader2, Send, ArrowLeft, QrCode, Clock, Copy, Check } from "lucide-react";
+import { Heart, Loader2, Send, ArrowLeft, QrCode, Clock, Copy, Check, Download } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
@@ -38,6 +38,50 @@ const DonatePage = () => {
   } | null>(null);
   const [paymentStatus, setPaymentStatus] = useState<string>("pending");
   const [polling, setPolling] = useState(false);
+  const [countdown, setCountdown] = useState(300); // 5 minutes in seconds
+  const qrisRef = useRef<HTMLImageElement>(null);
+
+  // Countdown timer
+  useEffect(() => {
+    if (!qrisData || paymentStatus !== "pending") return;
+    setCountdown(300);
+    const timer = setInterval(() => {
+      setCountdown((prev) => {
+        if (prev <= 1) {
+          clearInterval(timer);
+          setPaymentStatus("failed");
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [qrisData, paymentStatus]);
+
+  const formatCountdown = (s: number) => {
+    const m = Math.floor(s / 60);
+    const sec = s % 60;
+    return `${m}:${sec.toString().padStart(2, "0")}`;
+  };
+
+  const handleSaveQris = useCallback(async () => {
+    if (!qrisData?.qrisBase64) return;
+    try {
+      const res = await fetch(qrisData.qrisBase64);
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `QRIS-${qrisData.orderId}.png`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      toast({ title: "Berhasil", description: "QR code berhasil disimpan" });
+    } catch {
+      toast({ title: "Gagal", description: "Tidak dapat menyimpan gambar", variant: "destructive" });
+    }
+  }, [qrisData, toast]);
 
   const selectedAmount = form.amount || (customAmount ? parseInt(customAmount) : 0);
 
@@ -165,11 +209,19 @@ const DonatePage = () => {
                 {/* QR Code Display */}
                 <div className="bg-white rounded-xl p-4 inline-block mx-auto">
                   <img
+                    ref={qrisRef}
                     src={qrisData.qrisBase64}
                     alt="QRIS Payment QR Code"
                     className="w-56 h-56 mx-auto"
                   />
                 </div>
+
+                {/* Countdown timer */}
+                {paymentStatus === "pending" && (
+                  <div className={`text-lg font-bold font-display ${countdown <= 60 ? "text-destructive" : "text-primary"}`}>
+                    {formatCountdown(countdown)}
+                  </div>
+                )}
 
                 <p className="text-muted-foreground text-sm">
                   Scan QR code di atas menggunakan aplikasi e-wallet atau mobile banking kamu
@@ -190,6 +242,18 @@ const DonatePage = () => {
                     <span className="text-destructive font-medium">Pembayaran gagal/expired</span>
                   )}
                 </div>
+
+                {/* Save button */}
+                {paymentStatus === "pending" && (
+                  <motion.button
+                    onClick={handleSaveQris}
+                    className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-secondary text-secondary-foreground font-medium text-sm hover:bg-secondary/80 transition-colors"
+                    whileTap={{ scale: 0.95 }}
+                  >
+                    <Download className="w-4 h-4" />
+                    Simpan QR Code
+                  </motion.button>
+                )}
 
                 {polling && (
                   <p className="text-xs text-muted-foreground/60 animate-pulse">
