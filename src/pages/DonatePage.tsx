@@ -379,9 +379,21 @@ const DonatePage = () => {
                         exit={{ opacity: 0, height: 0 }}
                         className="overflow-hidden"
                       >
-                        <p className="text-sm text-primary mt-2 font-semibold">
-                          Total: {formatRupiah(selectedAmount)}
-                        </p>
+                        <div className="mt-2 space-y-1">
+                          <div className="flex justify-between text-xs text-muted-foreground">
+                            <span>Donasi</span>
+                            <span>{formatRupiah(selectedAmount)}</span>
+                          </div>
+                          <div className="flex justify-between text-xs text-muted-foreground">
+                            <span>Biaya layanan (1%)</span>
+                            <span>{formatRupiah(Math.ceil(selectedAmount * 0.01))}</span>
+                          </div>
+                          <div className="h-px bg-border/30 my-1" />
+                          <div className="flex justify-between text-sm font-semibold text-primary">
+                            <span>Total bayar</span>
+                            <span>{formatRupiah(selectedAmount + Math.ceil(selectedAmount * 0.01))}</span>
+                          </div>
+                        </div>
                       </motion.div>
                     )}
                   </AnimatePresence>
