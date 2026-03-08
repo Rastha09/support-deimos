@@ -115,16 +115,36 @@ const DonatePage = () => {
     return Object.keys(e).length === 0;
   };
 
-  const startPolling = (transactionId: string) => {
+  const startPolling = (orderId: string) => {
     setPolling(true);
-    const interval = setInterval(async () => {
-      try {
-        const { data } = await supabase.from("donations").select("status").eq("merchant_order_id", transactionId).maybeSingle();
-        if (data?.status === "SUCCESS") { clearInterval(interval); setPaymentStatus("paid"); setPolling(false); navigate("/payment-status?merchantOrderId=" + transactionId); }
-        else if (data?.status === "FAILED" || data?.status === "EXPIRED") { clearInterval(interval); setPaymentStatus("failed"); setPolling(false); }
-      } catch (err) { console.error("Polling error:", err); }
-    }, 3000);
-    setTimeout(() => { clearInterval(interval); setPolling(false); }, 30 * 60 * 1000);
+    const channel = supabase
+      .channel(`donate-status-${orderId}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "UPDATE",
+          schema: "public",
+          table: "donations",
+          filter: `merchant_order_id=eq.${orderId}`,
+        },
+        (payload) => {
+          const s = (payload.new as { status: string }).status;
+          if (s === "SUCCESS" || s === "PAID") {
+            setPaymentStatus("paid");
+            setPolling(false);
+            supabase.removeChannel(channel);
+            navigate("/payment-status?merchantOrderId=" + orderId);
+          } else if (s === "FAILED" || s === "EXPIRED") {
+            setPaymentStatus("failed");
+            setPolling(false);
+            supabase.removeChannel(channel);
+          }
+        }
+      )
+      .subscribe();
+
+    // Cleanup after 30 minutes
+    setTimeout(() => { supabase.removeChannel(channel); setPolling(false); }, 30 * 60 * 1000);
   };
 
   const handleSubmit = async () => {
