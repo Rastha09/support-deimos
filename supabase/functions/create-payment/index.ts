@@ -49,13 +49,18 @@ serve(async (req) => {
 
     const orderId = `DEIMOS-${Date.now()}-${Math.random().toString(36).substring(2, 8)}`;
 
+    // Add 1% service fee so the creator receives the full donation amount
+    const FEE_PERCENTAGE = 0.01;
+    const fee = Math.ceil(amount * FEE_PERCENTAGE);
+    const chargedAmount = amount + fee;
+
     // Build QRISMU signature: HMAC-SHA256(secret_key, timestamp + METHOD + path + body)
     const timestamp = new Date().toISOString();
     const method = "POST";
     const path = "/api/v1/transactions";
     const bodyObj = {
       order_id: orderId,
-      amount,
+      amount: chargedAmount,
       customer_name: donorName.trim().substring(0, 50),
       customer_email: email?.trim() || undefined,
       expiry_minutes: 30,
