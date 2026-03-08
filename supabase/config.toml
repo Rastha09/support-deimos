@@ -5,3 +5,9 @@ verify_jwt = false
 
 [functions.payment-callback]
 verify_jwt = false
+
+[functions.send-email]
+verify_jwt = false
+
+[functions.check-status]
+verify_jwt = false

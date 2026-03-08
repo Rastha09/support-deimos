@@ -73,6 +73,15 @@ serve(async (req) => {
       const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
       const dbStatus = status === "paid" ? "SUCCESS" : status === "expired" ? "EXPIRED" : "FAILED";
 
+      // Get current donation data before update (to check if status actually changed)
+      const { data: currentDonation } = await supabase
+        .from("donations")
+        .select("status, email, donor_name, amount, merchant_order_id")
+        .eq("transaction_id", transactionId)
+        .maybeSingle();
+
+      const statusChanged = currentDonation && currentDonation.status !== dbStatus;
+
       await supabase
         .from("donations")
         .update({
@@ -83,6 +92,31 @@ serve(async (req) => {
           updated_at: new Date().toISOString(),
         })
         .eq("transaction_id", transactionId);
+
+      // Send email notification if status changed and email exists
+      if (statusChanged && currentDonation?.email) {
+        try {
+          const emailRes = await fetch(`${SUPABASE_URL}/functions/v1/send-email`, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              "Authorization": `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
+            },
+            body: JSON.stringify({
+              email: currentDonation.email,
+              donorName: currentDonation.donor_name,
+              amount: currentDonation.amount,
+              status: dbStatus,
+              orderId: currentDonation.merchant_order_id,
+              paidAt: txData.paid_at || null,
+            }),
+          });
+          const emailData = await emailRes.json();
+          console.log("Email notification sent:", emailData);
+        } catch (emailErr) {
+          console.error("Failed to send email notification:", emailErr);
+        }
+      }
     }
 
     return new Response(
