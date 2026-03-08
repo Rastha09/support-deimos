@@ -109,6 +109,8 @@ serve(async (req) => {
       email: email?.trim().substring(0, 255) || null,
       message: message?.trim().substring(0, 500) || null,
       amount,
+      fee,
+      amount_received: amount,
       reference: txData.transaction_id || "",
       merchant_order_id: orderId,
       transaction_id: txData.transaction_id,
