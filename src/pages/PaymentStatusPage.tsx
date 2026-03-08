@@ -1,13 +1,11 @@
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState } from "react";
 import { useSearchParams, Link } from "react-router-dom";
 import { motion } from "framer-motion";
 import { CheckCircle, XCircle, Clock, ArrowLeft, RefreshCw, Heart, Sparkles } from "lucide-react";
-import { z } from "zod";
 import { supabase } from "@/integrations/supabase/client";
 import Footer from "@/components/Footer";
 import ParticleBackground from "@/components/ParticleBackground";
 
-const DonationStatusSchema = z.object({ status: z.string() });
 type PaymentStatus = "loading" | "PAID" | "PENDING" | "FAILED" | "unknown";
 
 const StatusShell = ({ children }: { children: React.ReactNode }) => (
@@ -47,23 +45,48 @@ const PaymentStatusPage = () => {
   const [searchParams] = useSearchParams();
   const merchantOrderId = searchParams.get("merchantOrderId");
   const [status, setStatus] = useState<PaymentStatus>("loading");
-  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useEffect(() => {
     if (!merchantOrderId) { setStatus("unknown"); return; }
-    const checkStatus = async () => {
-      const { data, error } = await supabase.from("donations").select("status").eq("merchant_order_id", merchantOrderId).maybeSingle();
+
+    // Initial fetch
+    const fetchInitial = async () => {
+      const { data, error } = await supabase
+        .from("donations")
+        .select("status")
+        .eq("merchant_order_id", merchantOrderId)
+        .maybeSingle();
+
       if (error || !data) { setStatus("unknown"); return; }
-      const parsed = DonationStatusSchema.safeParse(data);
-      if (!parsed.success) { setStatus("unknown"); return; }
-      const s = parsed.data.status;
-      if (s === "PAID" || s === "SUCCESS") { setStatus("PAID"); if (intervalRef.current) clearInterval(intervalRef.current); }
-      else if (s === "FAILED" || s === "EXPIRED") { setStatus("FAILED"); if (intervalRef.current) clearInterval(intervalRef.current); }
+      const s = data.status;
+      if (s === "PAID" || s === "SUCCESS") setStatus("PAID");
+      else if (s === "FAILED" || s === "EXPIRED") setStatus("FAILED");
       else setStatus("PENDING");
     };
-    checkStatus();
-    intervalRef.current = setInterval(checkStatus, 2000);
-    return () => { if (intervalRef.current) clearInterval(intervalRef.current); };
+
+    fetchInitial();
+
+    // Realtime subscription
+    const channel = supabase
+      .channel(`donation-status-${merchantOrderId}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "UPDATE",
+          schema: "public",
+          table: "donations",
+          filter: `merchant_order_id=eq.${merchantOrderId}`,
+        },
+        (payload) => {
+          const s = (payload.new as { status: string }).status;
+          if (s === "PAID" || s === "SUCCESS") setStatus("PAID");
+          else if (s === "FAILED" || s === "EXPIRED") setStatus("FAILED");
+          else setStatus("PENDING");
+        }
+      )
+      .subscribe();
+
+    return () => { supabase.removeChannel(channel); };
   }, [merchantOrderId]);
 
   if (status === "loading") {
@@ -156,7 +179,7 @@ const PaymentStatusPage = () => {
               <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-accent/60" />
               <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-accent" />
             </span>
-            <span className="text-xs text-muted-foreground">Status diperbarui otomatis</span>
+            <span className="text-xs text-muted-foreground">Status diperbarui otomatis secara realtime</span>
           </div>
           <p className="text-muted-foreground leading-relaxed text-sm max-w-sm mx-auto">
             Jika kamu sudah membayar, status akan diperbarui secara otomatis.
