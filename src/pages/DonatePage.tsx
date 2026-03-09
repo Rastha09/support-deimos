@@ -62,6 +62,7 @@ const DonatePage = () => {
   const [form, setForm] = useState({ donorName: "", email: "", message: "", amount: 0 });
   const [customAmount, setCustomAmount] = useState("");
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [agreed, setAgreed] = useState(false);
 
   const [qrisData, setQrisData] = useState<{
     qrisBase64: string; orderId: string; transactionId: string; expiresAt: string;
