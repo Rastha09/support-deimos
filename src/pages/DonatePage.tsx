@@ -443,7 +443,7 @@ const DonatePage = () => {
                 {/* Email */}
                 <div className="space-y-1.5">
                   <Label htmlFor="email" className="text-sm font-medium">
-                    Email <span className="text-muted-foreground text-xs">(opsional)</span>
+                    Email <span className="text-destructive">*</span>
                   </Label>
                   <Input
                     id="email"
