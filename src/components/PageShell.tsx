@@ -16,7 +16,7 @@ const PageShell = ({ children, title, badge, badgeIcon, maxWidth = "max-w-2xl" }
   return (
     <div className="min-h-screen bg-background flex flex-col relative overflow-hidden">
       <div className="absolute inset-0 bg-gradient-hero" />
-      <ParticleBackground count={25} color="200, 170, 90" connectionDistance={100} />
+      <ParticleBackground count={80} color="200, 170, 90" maxOpacity={0.85} connectionDistance={150} />
 
       <div className={`relative z-10 flex-1 ${maxWidth} mx-auto w-full px-5 md:px-6 py-12 md:py-16`}>
         <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4 }}>

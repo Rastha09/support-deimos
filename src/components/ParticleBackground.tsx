@@ -38,7 +38,7 @@ const ParticleBackground = ({
         y: Math.random() * height,
         vx: (Math.random() - 0.5) * 0.4,
         vy: (Math.random() - 0.5) * 0.4,
-        radius: Math.random() * 2 + 0.5,
+        radius: Math.random() * 2.5 + 1,
         opacity: Math.random() * maxOpacity * 0.5 + 0.1,
         pulse: Math.random() * Math.PI * 2,
         pulseSpeed: 0.01 + Math.random() * 0.02,
@@ -110,7 +110,7 @@ const ParticleBackground = ({
         p.vx *= 0.999;
         p.vy *= 0.999;
 
-        const currentOpacity = p.opacity * (0.6 + 0.4 * Math.sin(p.pulse));
+        const currentOpacity = p.opacity * (0.7 + 0.3 * Math.sin(p.pulse));
 
         ctx.beginPath();
         ctx.arc(p.x, p.y, p.radius, 0, Math.PI * 2);
@@ -125,7 +125,7 @@ const ParticleBackground = ({
           const dy = particles[i].y - particles[j].y;
           const dist = Math.sqrt(dx * dx + dy * dy);
           if (dist < connectionDistance) {
-            const opacity = (1 - dist / connectionDistance) * 0.15;
+            const opacity = (1 - dist / connectionDistance) * 0.3;
             ctx.beginPath();
             ctx.moveTo(particles[i].x, particles[i].y);
             ctx.lineTo(particles[j].x, particles[j].y);
