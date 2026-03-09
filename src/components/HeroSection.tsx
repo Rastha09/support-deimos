@@ -19,8 +19,7 @@ const HeroSection = () => {
         <div className="absolute inset-0 bg-gradient-to-r from-background/50 via-transparent to-background/50" />
       </div>
 
-      {/* Particle overlay */}
-      <ParticleBackground count={60} color="200, 170, 90" connectionDistance={130} />
+      {/* Particles now rendered at page level */}
 
       {/* Subtle grid overlay */}
       <div className="absolute inset-0 opacity-[0.03]" style={{
