@@ -152,7 +152,7 @@ const ParticleBackground = ({
   return (
     <canvas
       ref={canvasRef}
-      className={`absolute inset-0 pointer-events-auto ${className}`}
+      className={`absolute inset-0 w-full h-full ${className}`}
       style={{ zIndex: 0 }}
     />
   );
