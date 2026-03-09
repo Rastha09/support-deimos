@@ -109,7 +109,8 @@ const DonatePage = () => {
     const e: Record<string, string> = {};
     if (!form.donorName.trim()) e.donorName = "Nama wajib diisi";
     if (form.donorName.length > 100) e.donorName = "Nama maksimal 100 karakter";
-    if (form.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email)) e.email = "Email tidak valid";
+    if (!form.email.trim()) e.email = "Email wajib diisi";
+    else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email)) e.email = "Email tidak valid";
     if (form.message.length > 500) e.message = "Pesan maksimal 500 karakter";
     if (!selectedAmount || selectedAmount < 10000) e.amount = "Minimal donasi Rp10.000";
     if (selectedAmount > 10000000) e.amount = "Maksimal donasi Rp10.000.000";
