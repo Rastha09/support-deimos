@@ -25,7 +25,13 @@ const features = [
 
 const Index = () => {
   return (
-    <div className="min-h-screen bg-background">
+    <div className="relative min-h-screen bg-background">
+      {/* Full-page particle background */}
+      <div className="fixed inset-0 z-0 pointer-events-none">
+        <ParticleBackground count={70} color="200, 170, 90" connectionDistance={130} className="pointer-events-none" />
+      </div>
+
+      <div className="relative z-10">
       <HeroSection />
 
       {/* Features section */}
