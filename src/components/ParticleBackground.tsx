@@ -110,7 +110,7 @@ const ParticleBackground = ({
         p.vx *= 0.999;
         p.vy *= 0.999;
 
-        const currentOpacity = p.opacity * (0.6 + 0.4 * Math.sin(p.pulse));
+        const currentOpacity = p.opacity * (0.7 + 0.3 * Math.sin(p.pulse));
 
         ctx.beginPath();
         ctx.arc(p.x, p.y, p.radius, 0, Math.PI * 2);
