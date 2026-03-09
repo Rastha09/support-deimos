@@ -473,12 +473,28 @@ const DonatePage = () => {
                   <p className="text-[11px] text-muted-foreground/50 text-right tabular-nums">{form.message.length}/500</p>
                 </div>
 
+                {/* Agreement checkbox */}
+                <div className="flex items-start gap-2.5">
+                  <Checkbox
+                    id="agreement"
+                    checked={agreed}
+                    onCheckedChange={(checked) => setAgreed(checked === true)}
+                    className="mt-0.5"
+                  />
+                  <label htmlFor="agreement" className="text-sm text-muted-foreground leading-snug cursor-pointer select-none">
+                    Saya menyetujui{" "}
+                    <Link to="/terms" className="text-primary hover:underline">syarat &amp; ketentuan</Link>{" "}
+                    yang berlaku
+                  </label>
+                </div>
+                {errors.agreement && <p className="text-xs text-destructive -mt-3">{errors.agreement}</p>}
+
                 <div className="h-px bg-border/20" />
 
                 {/* Submit */}
                 <motion.button
                   onClick={handleSubmit}
-                  disabled={loading}
+                  disabled={loading || !agreed}
                   className="w-full flex items-center justify-center gap-2.5 py-3.5 rounded-xl bg-primary text-primary-foreground font-semibold text-base shadow-[0_4px_24px_-4px_hsl(var(--primary)/0.3)] hover:shadow-[0_4px_32px_-4px_hsl(var(--primary)/0.45)] transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed disabled:shadow-none"
                   whileHover={{ scale: loading ? 1 : 1.01 }}
                   whileTap={{ scale: loading ? 1 : 0.98 }}
