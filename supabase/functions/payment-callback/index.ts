@@ -23,8 +23,10 @@ serve(async (req) => {
     if (!QRISMU_SECRET_KEY) throw new Error("QRISMU_SECRET_KEY not configured");
     if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) throw new Error("Supabase env not configured");
 
-    // Get raw body for signature verification
     const rawBody = await req.text();
+    console.log("=== PAYMENT CALLBACK RECEIVED ===");
+    console.log("Raw body:", rawBody);
+
     const body = JSON.parse(rawBody);
 
     // Verify webhook signature
@@ -47,11 +49,14 @@ serve(async (req) => {
           status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
+      console.log("Webhook signature verified OK");
+    } else {
+      console.log("No webhook signature header — skipping verification");
     }
 
     const { event, transaction_id, order_id, amount, fee, amount_received, status, paid_at } = body;
 
-    console.log("QRISMU webhook received:", { event, transaction_id, order_id, status });
+    console.log("Parsed webhook data:", { event, transaction_id, order_id, status, amount });
 
     if (event !== "payment.success") {
       console.log("Ignoring non-success event:", event);
@@ -63,11 +68,13 @@ serve(async (req) => {
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
     // Check for duplicate processing
-    const { data: existing } = await supabase
+    const { data: existing, error: selectError } = await supabase
       .from("donations")
       .select("id, status, email, donor_name, amount")
       .eq("merchant_order_id", order_id)
       .maybeSingle();
+
+    console.log("Existing donation lookup:", { existing, selectError });
 
     if (existing && existing.status === "SUCCESS") {
       console.log("Already processed:", order_id);
@@ -95,9 +102,11 @@ serve(async (req) => {
         console.error("Update error:", error);
         throw new Error("Failed to update donation");
       }
+      console.log("Donation updated to SUCCESS:", order_id);
     } else {
       const { error } = await supabase.from("donations").insert({
-        donor_name: "Unknown",
+        donor_name: body.customer_name || "Unknown",
+        email: body.customer_email || null,
         amount: amount || 0,
         reference: transaction_id || "",
         merchant_order_id: order_id,
@@ -108,36 +117,57 @@ serve(async (req) => {
         console.error("Insert error:", error);
         throw new Error("Failed to insert donation");
       }
+      console.log("New donation inserted as SUCCESS:", order_id);
     }
 
-    console.log(`Donation ${order_id} marked as SUCCESS`);
+    // === SEND EMAIL NOTIFICATION ===
+    // Get fresh donation data from DB to ensure we have email
+    const { data: donation } = await supabase
+      .from("donations")
+      .select("email, donor_name, amount, merchant_order_id")
+      .eq("merchant_order_id", order_id)
+      .maybeSingle();
 
-    // Send email notification
-    if (existing?.email || body.customer_email) {
-      const donationEmail = existing?.email || body.customer_email;
-      const donationName = existing?.donor_name || body.customer_name || "Donatur";
-      const donationAmount = existing?.amount || amount || 0;
+    console.log("Fresh donation data for email:", donation);
+
+    const donationEmail = donation?.email || body.customer_email;
+    const donationName = donation?.donor_name || body.customer_name || "Donatur";
+    const donationAmount = donation?.amount || amount || 0;
+
+    if (donationEmail) {
+      console.log("Sending email to:", donationEmail);
       try {
+        const emailPayload = {
+          email: donationEmail,
+          donorName: donationName,
+          amount: donationAmount,
+          status: "SUCCESS",
+          orderId: order_id,
+          paidAt: paid_at || new Date().toISOString(),
+        };
+        console.log("Email payload:", JSON.stringify(emailPayload));
+
         const emailRes = await fetch(`${SUPABASE_URL}/functions/v1/send-email`, {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
             "Authorization": `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
           },
-          body: JSON.stringify({
-            email: donationEmail,
-            donorName: donationName,
-            amount: donationAmount,
-            status: "SUCCESS",
-            orderId: order_id,
-            paidAt: paid_at || new Date().toISOString(),
-          }),
+          body: JSON.stringify(emailPayload),
         });
-        const emailData = await emailRes.json();
-        console.log("Email notification sent from callback:", emailData);
+
+        const emailText = await emailRes.text();
+        console.log("Send-email response status:", emailRes.status);
+        console.log("Send-email response body:", emailText);
+
+        if (!emailRes.ok) {
+          console.error("Send-email returned error:", emailRes.status, emailText);
+        }
       } catch (emailErr) {
-        console.error("Failed to send email from callback:", emailErr);
+        console.error("Failed to call send-email function:", emailErr);
       }
+    } else {
+      console.warn("No email found for donation — skipping email notification. order_id:", order_id);
     }
 
     return new Response(JSON.stringify({ ok: true }), {
