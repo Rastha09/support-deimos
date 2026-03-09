@@ -97,6 +97,7 @@ export default {
         "accordion-up": "accordion-up 0.2s ease-out",
         "float": "float 6s ease-in-out infinite",
         "pulse-glow": "pulse-glow 3s ease-in-out infinite",
+        "marquee": "marquee 25s linear infinite",
       },
     },
   },
