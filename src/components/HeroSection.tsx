@@ -2,7 +2,6 @@ import { Heart, ArrowRight, Sparkles, ChevronDown } from "lucide-react";
 import { Link } from "react-router-dom";
 import { motion } from "framer-motion";
 import heroBg from "@/assets/hero-bg.jpg";
-import ParticleBackground from "@/components/ParticleBackground";
 
 const HeroSection = () => {
   return (
