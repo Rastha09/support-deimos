@@ -1,5 +1,6 @@
 import HeroSection from "@/components/HeroSection";
 import Footer from "@/components/Footer";
+import ParticleBackground from "@/components/ParticleBackground";
 import { motion } from "framer-motion";
 import { Heart, Zap, Shield, ArrowRight, Star } from "lucide-react";
 import { Link } from "react-router-dom";
