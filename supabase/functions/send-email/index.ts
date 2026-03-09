@@ -116,7 +116,7 @@ serve(async (req) => {
         "Authorization": `Bearer ${RESEND_API_KEY}`,
       },
       body: JSON.stringify({
-        from: "DEIMOS <onboarding@resend.dev>",
+        from: "DEIMOS <noreply@supportdeimos.my.id>",
         to: [email],
         subject,
         html,

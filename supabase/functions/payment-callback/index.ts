@@ -65,7 +65,7 @@ serve(async (req) => {
     // Check for duplicate processing
     const { data: existing } = await supabase
       .from("donations")
-      .select("id, status")
+      .select("id, status, email, donor_name, amount")
       .eq("merchant_order_id", order_id)
       .maybeSingle();
 
@@ -111,6 +111,34 @@ serve(async (req) => {
     }
 
     console.log(`Donation ${order_id} marked as SUCCESS`);
+
+    // Send email notification
+    if (existing?.email || body.customer_email) {
+      const donationEmail = existing?.email || body.customer_email;
+      const donationName = existing?.donor_name || body.customer_name || "Donatur";
+      const donationAmount = existing?.amount || amount || 0;
+      try {
+        const emailRes = await fetch(`${SUPABASE_URL}/functions/v1/send-email`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
+          },
+          body: JSON.stringify({
+            email: donationEmail,
+            donorName: donationName,
+            amount: donationAmount,
+            status: "SUCCESS",
+            orderId: order_id,
+            paidAt: paid_at || new Date().toISOString(),
+          }),
+        });
+        const emailData = await emailRes.json();
+        console.log("Email notification sent from callback:", emailData);
+      } catch (emailErr) {
+        console.error("Failed to send email from callback:", emailErr);
+      }
+    }
 
     return new Response(JSON.stringify({ ok: true }), {
       status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" },
