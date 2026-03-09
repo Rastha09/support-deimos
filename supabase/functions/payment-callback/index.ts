@@ -65,7 +65,7 @@ serve(async (req) => {
     // Check for duplicate processing
     const { data: existing } = await supabase
       .from("donations")
-      .select("id, status")
+      .select("id, status, email, donor_name, amount")
       .eq("merchant_order_id", order_id)
       .maybeSingle();
 
