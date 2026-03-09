@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { Heart, Loader2, ArrowLeft, QrCode, Clock, Download, Shield, Wallet, Timer } from "lucide-react";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
@@ -61,6 +62,7 @@ const DonatePage = () => {
   const [form, setForm] = useState({ donorName: "", email: "", message: "", amount: 0 });
   const [customAmount, setCustomAmount] = useState("");
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [agreed, setAgreed] = useState(false);
 
   const [qrisData, setQrisData] = useState<{
     qrisBase64: string; orderId: string; transactionId: string; expiresAt: string;
@@ -107,7 +109,8 @@ const DonatePage = () => {
     const e: Record<string, string> = {};
     if (!form.donorName.trim()) e.donorName = "Nama wajib diisi";
     if (form.donorName.length > 100) e.donorName = "Nama maksimal 100 karakter";
-    if (form.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email)) e.email = "Email tidak valid";
+    if (!form.email.trim()) e.email = "Email wajib diisi";
+    else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email)) e.email = "Email tidak valid";
     if (form.message.length > 500) e.message = "Pesan maksimal 500 karakter";
     if (!selectedAmount || selectedAmount < 10000) e.amount = "Minimal donasi Rp10.000";
     if (selectedAmount > 10000000) e.amount = "Maksimal donasi Rp10.000.000";
@@ -440,7 +443,7 @@ const DonatePage = () => {
                 {/* Email */}
                 <div className="space-y-1.5">
                   <Label htmlFor="email" className="text-sm font-medium">
-                    Email <span className="text-muted-foreground text-xs">(opsional)</span>
+                    Email <span className="text-destructive">*</span>
                   </Label>
                   <Input
                     id="email"
@@ -470,12 +473,28 @@ const DonatePage = () => {
                   <p className="text-[11px] text-muted-foreground/50 text-right tabular-nums">{form.message.length}/500</p>
                 </div>
 
+                {/* Agreement checkbox */}
+                <div className="flex items-start gap-2.5">
+                  <Checkbox
+                    id="agreement"
+                    checked={agreed}
+                    onCheckedChange={(checked) => setAgreed(checked === true)}
+                    className="mt-0.5"
+                  />
+                  <label htmlFor="agreement" className="text-sm text-muted-foreground leading-snug cursor-pointer select-none">
+                    Saya menyetujui{" "}
+                    <Link to="/terms" className="text-primary hover:underline">syarat &amp; ketentuan</Link>{" "}
+                    yang berlaku
+                  </label>
+                </div>
+                {errors.agreement && <p className="text-xs text-destructive -mt-3">{errors.agreement}</p>}
+
                 <div className="h-px bg-border/20" />
 
                 {/* Submit */}
                 <motion.button
                   onClick={handleSubmit}
-                  disabled={loading}
+                  disabled={loading || !agreed}
                   className="w-full flex items-center justify-center gap-2.5 py-3.5 rounded-xl bg-primary text-primary-foreground font-semibold text-base shadow-[0_4px_24px_-4px_hsl(var(--primary)/0.3)] hover:shadow-[0_4px_32px_-4px_hsl(var(--primary)/0.45)] transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed disabled:shadow-none"
                   whileHover={{ scale: loading ? 1 : 1.01 }}
                   whileTap={{ scale: loading ? 1 : 0.98 }}

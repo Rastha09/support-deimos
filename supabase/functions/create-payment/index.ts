@@ -36,7 +36,12 @@ serve(async (req) => {
         status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
-    if (email && (typeof email !== "string" || email.length > 255)) {
+    if (!email || typeof email !== "string" || email.trim().length === 0) {
+      return new Response(JSON.stringify({ error: "Email wajib diisi" }), {
+        status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+    if (email.length > 255 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
       return new Response(JSON.stringify({ error: "Email tidak valid" }), {
         status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
