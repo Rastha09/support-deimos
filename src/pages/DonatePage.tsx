@@ -414,7 +414,7 @@ const DonatePage = () => {
                           <div className="h-px bg-border/30 my-1" />
                           <div className="flex justify-between text-sm font-semibold text-primary">
                             <span>Total bayar</span>
-                            <span>{formatRupiah(selectedAmount + Math.ceil(selectedAmount * 0.01))}</span>
+                            <span>{formatRupiah(selectedAmount + Math.ceil(selectedAmount * 0.007))}</span>
                           </div>
                         </div>
                       </motion.div>
