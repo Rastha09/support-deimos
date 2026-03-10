@@ -54,8 +54,8 @@ serve(async (req) => {
 
     const orderId = `DEIMOS-${Date.now()}-${Math.random().toString(36).substring(2, 8)}`;
 
-    // Add 1% service fee so the creator receives the full donation amount
-    const FEE_PERCENTAGE = 0.01;
+    // Add standard QRIS MDR fee (0.7%)
+    const FEE_PERCENTAGE = 0.007;
     const fee = Math.ceil(amount * FEE_PERCENTAGE);
     const chargedAmount = amount + fee;
 
