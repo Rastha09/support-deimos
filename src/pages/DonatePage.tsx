@@ -71,6 +71,8 @@ const DonatePage = () => {
   const [polling, setPolling] = useState(false);
   const [countdown, setCountdown] = useState(300);
   const qrisRef = useRef<HTMLImageElement>(null);
+  const statusMonitorCleanupRef = useRef<(() => void) | null>(null);
+  const isCheckingStatusRef = useRef(false);
 
   useEffect(() => {
     if (!qrisData || paymentStatus !== "pending") return;
@@ -130,27 +132,116 @@ const DonatePage = () => {
     return Object.keys(e).length === 0;
   };
 
-  const startPolling = (orderId: string) => {
-    setPolling(true);
-    let stopped = false;
+  const normalizePaymentStatus = (status: string | null | undefined) => {
+    const normalized = (status ?? "").toUpperCase();
+    if (normalized === "SUCCESS" || normalized === "PAID") return "paid";
+    if (normalized === "FAILED" || normalized === "EXPIRED") return "failed";
+    return "pending";
+  };
 
-    // Helper to handle status
-    const handleStatus = (s: string) => {
+  const stopStatusMonitor = useCallback(() => {
+    statusMonitorCleanupRef.current?.();
+    statusMonitorCleanupRef.current = null;
+    isCheckingStatusRef.current = false;
+    setPolling(false);
+  }, []);
+
+  const startPolling = useCallback((orderId: string, transactionId: string) => {
+    stopStatusMonitor();
+    setPolling(true);
+
+    let stopped = false;
+    let channel: ReturnType<typeof supabase.channel> | null = null;
+    let pollInterval: number | null = null;
+    let timeoutId: number | null = null;
+
+    const clearListeners = () => {
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+      window.removeEventListener("focus", handleFocusOrPageShow);
+      window.removeEventListener("pageshow", handleFocusOrPageShow);
+    };
+
+    const stop = () => {
       if (stopped) return;
-      if (s === "SUCCESS" || s === "PAID") {
-        stopped = true;
+      stopped = true;
+      clearListeners();
+      if (channel) {
+        void supabase.removeChannel(channel);
+      }
+      if (pollInterval) {
+        window.clearInterval(pollInterval);
+      }
+      if (timeoutId) {
+        window.clearTimeout(timeoutId);
+      }
+      if (statusMonitorCleanupRef.current === stop) {
+        statusMonitorCleanupRef.current = null;
+      }
+      isCheckingStatusRef.current = false;
+      setPolling(false);
+    };
+
+    const handleStatus = (rawStatus: string | null | undefined) => {
+      if (stopped) return;
+      const nextStatus = normalizePaymentStatus(rawStatus);
+
+      if (nextStatus === "paid") {
         setPaymentStatus("paid");
-        setPolling(false);
-        navigate("/payment-status?merchantOrderId=" + orderId);
-      } else if (s === "FAILED" || s === "EXPIRED") {
-        stopped = true;
+        stop();
+        navigate(`/payment-status?merchantOrderId=${orderId}`);
+        return;
+      }
+
+      if (nextStatus === "failed") {
         setPaymentStatus("failed");
-        setPolling(false);
+        stop();
       }
     };
 
-    // 1) Realtime subscription
-    const channel = supabase
+    const checkStatus = async () => {
+      if (stopped || isCheckingStatusRef.current) return;
+      isCheckingStatusRef.current = true;
+
+      try {
+        const { data } = await supabase
+          .from("donations")
+          .select("status")
+          .eq("merchant_order_id", orderId)
+          .maybeSingle();
+
+        handleStatus(data?.status);
+        if (stopped) return;
+
+        if (transactionId) {
+          const { data: latestGatewayStatus } = await supabase.functions.invoke("check-status", {
+            body: { transactionId },
+          });
+
+          const gatewayStatus = (latestGatewayStatus as { status?: string } | null)?.status;
+          if (gatewayStatus) handleStatus(gatewayStatus);
+        }
+      } catch {
+        // ignore temporary network errors
+      } finally {
+        isCheckingStatusRef.current = false;
+      }
+    };
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible") {
+        void checkStatus();
+      }
+    };
+
+    const handleFocusOrPageShow = () => {
+      void checkStatus();
+    };
+
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    window.addEventListener("focus", handleFocusOrPageShow);
+    window.addEventListener("pageshow", handleFocusOrPageShow);
+
+    channel = supabase
       .channel(`donate-status-${orderId}`)
       .on(
         "postgres_changes",
@@ -161,32 +252,32 @@ const DonatePage = () => {
           filter: `merchant_order_id=eq.${orderId}`,
         },
         (payload) => {
-          handleStatus((payload.new as { status: string }).status);
+          handleStatus((payload.new as { status?: string }).status);
         }
       )
-      .subscribe();
+      .subscribe((channelState) => {
+        if (channelState === "CHANNEL_ERROR" || channelState === "TIMED_OUT" || channelState === "CLOSED") {
+          void checkStatus();
+        }
+      });
 
-    // 2) Polling fallback every 5s (for in-app browsers where WebSocket may fail)
-    const pollInterval = setInterval(async () => {
-      if (stopped) { clearInterval(pollInterval); return; }
-      try {
-        const { data } = await supabase
-          .from("donations")
-          .select("status")
-          .eq("merchant_order_id", orderId)
-          .maybeSingle();
-        if (data?.status) handleStatus(data.status);
-      } catch { /* ignore poll errors */ }
-    }, 5000);
+    pollInterval = window.setInterval(() => {
+      void checkStatus();
+    }, 4000);
 
-    // Cleanup after 30 minutes
-    setTimeout(() => {
-      stopped = true;
-      supabase.removeChannel(channel);
-      clearInterval(pollInterval);
-      setPolling(false);
+    timeoutId = window.setTimeout(() => {
+      stop();
     }, 30 * 60 * 1000);
-  };
+
+    statusMonitorCleanupRef.current = stop;
+    void checkStatus();
+  }, [navigate, stopStatusMonitor]);
+
+  useEffect(() => {
+    return () => {
+      stopStatusMonitor();
+    };
+  }, [stopStatusMonitor]);
 
   const handleSubmit = async () => {
     if (!validate()) return;
@@ -199,14 +290,18 @@ const DonatePage = () => {
       if (data?.qrisBase64) {
         setQrisData({ qrisBase64: data.qrisBase64, orderId: data.orderId, transactionId: data.transactionId, expiresAt: data.expiresAt });
         setPaymentStatus("pending");
-        startPolling(data.orderId);
+        startPolling(data.orderId, data.transactionId || "");
       } else throw new Error("Tidak dapat membuat pembayaran QRIS");
     } catch (err: any) {
       toast({ title: "Gagal", description: err.message || "Terjadi kesalahan. Coba lagi.", variant: "destructive" });
     } finally { setLoading(false); }
   };
 
-  const handleBack = () => { setQrisData(null); setPaymentStatus("pending"); setPolling(false); };
+  const handleBack = () => {
+    stopStatusMonitor();
+    setQrisData(null);
+    setPaymentStatus("pending");
+  };
 
   return (
     <div className="min-h-screen bg-background flex flex-col relative overflow-hidden">
