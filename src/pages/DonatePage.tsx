@@ -132,6 +132,24 @@ const DonatePage = () => {
 
   const startPolling = (orderId: string) => {
     setPolling(true);
+    let stopped = false;
+
+    // Helper to handle status
+    const handleStatus = (s: string) => {
+      if (stopped) return;
+      if (s === "SUCCESS" || s === "PAID") {
+        stopped = true;
+        setPaymentStatus("paid");
+        setPolling(false);
+        navigate("/payment-status?merchantOrderId=" + orderId);
+      } else if (s === "FAILED" || s === "EXPIRED") {
+        stopped = true;
+        setPaymentStatus("failed");
+        setPolling(false);
+      }
+    };
+
+    // 1) Realtime subscription
     const channel = supabase
       .channel(`donate-status-${orderId}`)
       .on(
@@ -143,23 +161,31 @@ const DonatePage = () => {
           filter: `merchant_order_id=eq.${orderId}`,
         },
         (payload) => {
-          const s = (payload.new as { status: string }).status;
-          if (s === "SUCCESS" || s === "PAID") {
-            setPaymentStatus("paid");
-            setPolling(false);
-            supabase.removeChannel(channel);
-            navigate("/payment-status?merchantOrderId=" + orderId);
-          } else if (s === "FAILED" || s === "EXPIRED") {
-            setPaymentStatus("failed");
-            setPolling(false);
-            supabase.removeChannel(channel);
-          }
+          handleStatus((payload.new as { status: string }).status);
         }
       )
       .subscribe();
 
+    // 2) Polling fallback every 5s (for in-app browsers where WebSocket may fail)
+    const pollInterval = setInterval(async () => {
+      if (stopped) { clearInterval(pollInterval); return; }
+      try {
+        const { data } = await supabase
+          .from("donations")
+          .select("status")
+          .eq("merchant_order_id", orderId)
+          .maybeSingle();
+        if (data?.status) handleStatus(data.status);
+      } catch { /* ignore poll errors */ }
+    }, 5000);
+
     // Cleanup after 30 minutes
-    setTimeout(() => { supabase.removeChannel(channel); setPolling(false); }, 30 * 60 * 1000);
+    setTimeout(() => {
+      stopped = true;
+      supabase.removeChannel(channel);
+      clearInterval(pollInterval);
+      setPolling(false);
+    }, 30 * 60 * 1000);
   };
 
   const handleSubmit = async () => {
