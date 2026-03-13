@@ -89,15 +89,27 @@ const DonatePage = () => {
     try {
       const res = await fetch(qrisData.qrisBase64);
       const blob = await res.blob();
+      const file = new File([blob], `QRIS-${qrisData.orderId}.png`, { type: "image/png" });
+
+      // Try Web Share API first (works in Telegram, WhatsApp, etc.)
+      if (navigator.share && navigator.canShare?.({ files: [file] })) {
+        await navigator.share({ files: [file], title: "QRIS Payment" });
+        toast({ title: "Berhasil", description: "QR code berhasil dibagikan" });
+        return;
+      }
+
+      // Fallback: open image in new tab (works in most in-app browsers)
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = `QRIS-${qrisData.orderId}.png`;
+      a.download = file.name;
+      a.target = "_blank";
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
-      URL.revokeObjectURL(url);
-      toast({ title: "Berhasil", description: "QR code berhasil disimpan" });
+      // Delay revoke so the download/tab can start
+      setTimeout(() => URL.revokeObjectURL(url), 5000);
+      toast({ title: "Berhasil", description: "QR code berhasil disimpan. Jika tidak terunduh, tekan lama gambar untuk menyimpan." });
     } catch {
       toast({ title: "Gagal", description: "Tidak dapat menyimpan gambar", variant: "destructive" });
     }
@@ -120,6 +132,24 @@ const DonatePage = () => {
 
   const startPolling = (orderId: string) => {
     setPolling(true);
+    let stopped = false;
+
+    // Helper to handle status
+    const handleStatus = (s: string) => {
+      if (stopped) return;
+      if (s === "SUCCESS" || s === "PAID") {
+        stopped = true;
+        setPaymentStatus("paid");
+        setPolling(false);
+        navigate("/payment-status?merchantOrderId=" + orderId);
+      } else if (s === "FAILED" || s === "EXPIRED") {
+        stopped = true;
+        setPaymentStatus("failed");
+        setPolling(false);
+      }
+    };
+
+    // 1) Realtime subscription
     const channel = supabase
       .channel(`donate-status-${orderId}`)
       .on(
@@ -131,23 +161,31 @@ const DonatePage = () => {
           filter: `merchant_order_id=eq.${orderId}`,
         },
         (payload) => {
-          const s = (payload.new as { status: string }).status;
-          if (s === "SUCCESS" || s === "PAID") {
-            setPaymentStatus("paid");
-            setPolling(false);
-            supabase.removeChannel(channel);
-            navigate("/payment-status?merchantOrderId=" + orderId);
-          } else if (s === "FAILED" || s === "EXPIRED") {
-            setPaymentStatus("failed");
-            setPolling(false);
-            supabase.removeChannel(channel);
-          }
+          handleStatus((payload.new as { status: string }).status);
         }
       )
       .subscribe();
 
+    // 2) Polling fallback every 5s (for in-app browsers where WebSocket may fail)
+    const pollInterval = setInterval(async () => {
+      if (stopped) { clearInterval(pollInterval); return; }
+      try {
+        const { data } = await supabase
+          .from("donations")
+          .select("status")
+          .eq("merchant_order_id", orderId)
+          .maybeSingle();
+        if (data?.status) handleStatus(data.status);
+      } catch { /* ignore poll errors */ }
+    }, 5000);
+
     // Cleanup after 30 minutes
-    setTimeout(() => { supabase.removeChannel(channel); setPolling(false); }, 30 * 60 * 1000);
+    setTimeout(() => {
+      stopped = true;
+      supabase.removeChannel(channel);
+      clearInterval(pollInterval);
+      setPolling(false);
+    }, 30 * 60 * 1000);
   };
 
   const handleSubmit = async () => {

@@ -49,6 +49,14 @@ const PaymentStatusPage = () => {
   useEffect(() => {
     if (!merchantOrderId) { setStatus("unknown"); return; }
 
+    let stopped = false;
+
+    const mapStatus = (s: string): PaymentStatus => {
+      if (s === "PAID" || s === "SUCCESS") return "PAID";
+      if (s === "FAILED" || s === "EXPIRED") return "FAILED";
+      return "PENDING";
+    };
+
     // Initial fetch
     const fetchInitial = async () => {
       const { data, error } = await supabase
@@ -58,10 +66,7 @@ const PaymentStatusPage = () => {
         .maybeSingle();
 
       if (error || !data) { setStatus("unknown"); return; }
-      const s = data.status;
-      if (s === "PAID" || s === "SUCCESS") setStatus("PAID");
-      else if (s === "FAILED" || s === "EXPIRED") setStatus("FAILED");
-      else setStatus("PENDING");
+      setStatus(mapStatus(data.status));
     };
 
     fetchInitial();
@@ -78,15 +83,29 @@ const PaymentStatusPage = () => {
           filter: `merchant_order_id=eq.${merchantOrderId}`,
         },
         (payload) => {
-          const s = (payload.new as { status: string }).status;
-          if (s === "PAID" || s === "SUCCESS") setStatus("PAID");
-          else if (s === "FAILED" || s === "EXPIRED") setStatus("FAILED");
-          else setStatus("PENDING");
+          if (!stopped) setStatus(mapStatus((payload.new as { status: string }).status));
         }
       )
       .subscribe();
 
-    return () => { supabase.removeChannel(channel); };
+    // Polling fallback every 5s (for in-app browsers where WebSocket may fail)
+    const pollInterval = setInterval(async () => {
+      if (stopped) return;
+      try {
+        const { data } = await supabase
+          .from("donations")
+          .select("status")
+          .eq("merchant_order_id", merchantOrderId)
+          .maybeSingle();
+        if (data?.status && !stopped) setStatus(mapStatus(data.status));
+      } catch { /* ignore */ }
+    }, 5000);
+
+    return () => {
+      stopped = true;
+      supabase.removeChannel(channel);
+      clearInterval(pollInterval);
+    };
   }, [merchantOrderId]);
 
   if (status === "loading") {
