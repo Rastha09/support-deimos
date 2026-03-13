@@ -47,32 +47,94 @@ const PaymentStatusPage = () => {
   const [status, setStatus] = useState<PaymentStatus>("loading");
 
   useEffect(() => {
-    if (!merchantOrderId) { setStatus("unknown"); return; }
+    if (!merchantOrderId) {
+      setStatus("unknown");
+      return;
+    }
 
     let stopped = false;
+    let isChecking = false;
+    let channel: ReturnType<typeof supabase.channel> | null = null;
+    let pollInterval: number | null = null;
 
     const mapStatus = (s: string): PaymentStatus => {
-      if (s === "PAID" || s === "SUCCESS") return "PAID";
-      if (s === "FAILED" || s === "EXPIRED") return "FAILED";
+      const normalized = s.toUpperCase();
+      if (normalized === "PAID" || normalized === "SUCCESS") return "PAID";
+      if (normalized === "FAILED" || normalized === "EXPIRED") return "FAILED";
       return "PENDING";
     };
 
-    // Initial fetch
-    const fetchInitial = async () => {
-      const { data, error } = await supabase
-        .from("donations")
-        .select("status")
-        .eq("merchant_order_id", merchantOrderId)
-        .maybeSingle();
-
-      if (error || !data) { setStatus("unknown"); return; }
-      setStatus(mapStatus(data.status));
+    const stopWatching = () => {
+      if (stopped) return;
+      stopped = true;
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+      window.removeEventListener("focus", handleFocusOrPageShow);
+      window.removeEventListener("pageshow", handleFocusOrPageShow);
+      if (channel) {
+        void supabase.removeChannel(channel);
+      }
+      if (pollInterval) {
+        window.clearInterval(pollInterval);
+      }
     };
 
-    fetchInitial();
+    const applyStatus = (rawStatus: string | null | undefined) => {
+      if (!rawStatus || stopped) return;
+      const nextStatus = mapStatus(rawStatus);
+      setStatus(nextStatus);
 
-    // Realtime subscription
-    const channel = supabase
+      if (nextStatus === "PAID" || nextStatus === "FAILED") {
+        stopWatching();
+      }
+    };
+
+    const fetchLatestStatus = async () => {
+      if (stopped || isChecking) return;
+      isChecking = true;
+
+      try {
+        const { data } = await supabase
+          .from("donations")
+          .select("status, transaction_id")
+          .eq("merchant_order_id", merchantOrderId)
+          .maybeSingle();
+
+        if (data?.status) {
+          applyStatus(data.status);
+        }
+
+        if (!stopped && data?.transaction_id) {
+          const { data: latestGatewayStatus } = await supabase.functions.invoke("check-status", {
+            body: { transactionId: data.transaction_id },
+          });
+
+          const gatewayStatus = (latestGatewayStatus as { status?: string } | null)?.status;
+          if (gatewayStatus) applyStatus(gatewayStatus);
+        }
+      } catch {
+        if (!stopped) {
+          setStatus((prev) => (prev === "loading" ? "unknown" : prev));
+        }
+      } finally {
+        isChecking = false;
+      }
+    };
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible") {
+        void fetchLatestStatus();
+      }
+    };
+
+    const handleFocusOrPageShow = () => {
+      void fetchLatestStatus();
+    };
+
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    window.addEventListener("focus", handleFocusOrPageShow);
+    window.addEventListener("pageshow", handleFocusOrPageShow);
+
+    channel = supabase
       .channel(`donation-status-${merchantOrderId}`)
       .on(
         "postgres_changes",
@@ -83,28 +145,23 @@ const PaymentStatusPage = () => {
           filter: `merchant_order_id=eq.${merchantOrderId}`,
         },
         (payload) => {
-          if (!stopped) setStatus(mapStatus((payload.new as { status: string }).status));
+          applyStatus((payload.new as { status?: string }).status);
         }
       )
-      .subscribe();
+      .subscribe((channelState) => {
+        if (channelState === "CHANNEL_ERROR" || channelState === "TIMED_OUT" || channelState === "CLOSED") {
+          void fetchLatestStatus();
+        }
+      });
 
-    // Polling fallback every 5s (for in-app browsers where WebSocket may fail)
-    const pollInterval = setInterval(async () => {
-      if (stopped) return;
-      try {
-        const { data } = await supabase
-          .from("donations")
-          .select("status")
-          .eq("merchant_order_id", merchantOrderId)
-          .maybeSingle();
-        if (data?.status && !stopped) setStatus(mapStatus(data.status));
-      } catch { /* ignore */ }
-    }, 5000);
+    pollInterval = window.setInterval(() => {
+      void fetchLatestStatus();
+    }, 4000);
+
+    void fetchLatestStatus();
 
     return () => {
-      stopped = true;
-      supabase.removeChannel(channel);
-      clearInterval(pollInterval);
+      stopWatching();
     };
   }, [merchantOrderId]);
 
