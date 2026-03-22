@@ -359,7 +359,7 @@ const DonatePage = () => {
                   <div className="relative bg-white rounded-2xl p-5">
                     <img
                       ref={qrisRef}
-                      src={qrisData.qrisBase64}
+                      src={qrisData.qrisUrl}
                       alt="QRIS Payment QR Code"
                       className="w-52 h-52 md:w-56 md:h-56"
                     />
