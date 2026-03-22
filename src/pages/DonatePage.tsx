@@ -65,7 +65,7 @@ const DonatePage = () => {
   const [agreed, setAgreed] = useState(false);
 
   const [qrisData, setQrisData] = useState<{
-    qrisBase64: string; orderId: string; transactionId: string; expiresAt: string;
+    qrisUrl: string; orderId: string; transactionId: string;
   } | null>(null);
   const [paymentStatus, setPaymentStatus] = useState<string>("pending");
   const [polling, setPolling] = useState(false);
@@ -87,20 +87,18 @@ const DonatePage = () => {
   }, [qrisData, paymentStatus]);
 
   const handleSaveQris = useCallback(async () => {
-    if (!qrisData?.qrisBase64) return;
+    if (!qrisData?.qrisUrl) return;
     try {
-      const res = await fetch(qrisData.qrisBase64);
+      const res = await fetch(qrisData.qrisUrl);
       const blob = await res.blob();
       const file = new File([blob], `QRIS-${qrisData.orderId}.png`, { type: "image/png" });
 
-      // Try Web Share API first (works in Telegram, WhatsApp, etc.)
       if (navigator.share && navigator.canShare?.({ files: [file] })) {
         await navigator.share({ files: [file], title: "QRIS Payment" });
         toast({ title: "Berhasil", description: "QR code berhasil dibagikan" });
         return;
       }
 
-      // Fallback: open image in new tab (works in most in-app browsers)
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
@@ -109,9 +107,8 @@ const DonatePage = () => {
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
-      // Delay revoke so the download/tab can start
       setTimeout(() => URL.revokeObjectURL(url), 5000);
-      toast({ title: "Berhasil", description: "QR code berhasil disimpan. Jika tidak terunduh, tekan lama gambar untuk menyimpan." });
+      toast({ title: "Berhasil", description: "QR code berhasil disimpan." });
     } catch {
       toast({ title: "Gagal", description: "Tidak dapat menyimpan gambar", variant: "destructive" });
     }
@@ -287,8 +284,8 @@ const DonatePage = () => {
         body: { donorName: form.donorName.trim().substring(0, 100), email: form.email.trim().substring(0, 255), message: form.message.trim().substring(0, 500), amount: selectedAmount },
       });
       if (error) throw error;
-      if (data?.qrisBase64) {
-        setQrisData({ qrisBase64: data.qrisBase64, orderId: data.orderId, transactionId: data.transactionId, expiresAt: data.expiresAt });
+      if (data?.qrisUrl) {
+        setQrisData({ qrisUrl: data.qrisUrl, orderId: data.orderId, transactionId: data.transactionId });
         setPaymentStatus("pending");
         startPolling(data.orderId, data.transactionId || "");
       } else throw new Error("Tidak dapat membuat pembayaran QRIS");
@@ -348,7 +345,7 @@ const DonatePage = () => {
                   transition={{ delay: 0.3 }}
                   className="text-3xl font-bold font-display text-foreground"
                 >
-                   {formatRupiah(selectedAmount + Math.ceil(selectedAmount * 0.007))}
+                   {formatRupiah(selectedAmount)}
                 </motion.h2>
 
                 {/* QR Code with glow frame */}
@@ -362,7 +359,7 @@ const DonatePage = () => {
                   <div className="relative bg-white rounded-2xl p-5">
                     <img
                       ref={qrisRef}
-                      src={qrisData.qrisBase64}
+                      src={qrisData.qrisUrl}
                       alt="QRIS Payment QR Code"
                       className="w-52 h-52 md:w-56 md:h-56"
                     />
@@ -540,14 +537,10 @@ const DonatePage = () => {
                             <span>Donasi</span>
                             <span>{formatRupiah(selectedAmount)}</span>
                           </div>
-                          <div className="flex justify-between text-xs text-muted-foreground">
-                             <span>Biaya layanan (0.7%)</span>
-                             <span>{formatRupiah(Math.ceil(selectedAmount * 0.007))}</span>
-                          </div>
                           <div className="h-px bg-border/30 my-1" />
                           <div className="flex justify-between text-sm font-semibold text-primary">
                             <span>Total bayar</span>
-                            <span>{formatRupiah(selectedAmount + Math.ceil(selectedAmount * 0.007))}</span>
+                            <span>{formatRupiah(selectedAmount)}</span>
                           </div>
                         </div>
                       </motion.div>
@@ -651,7 +644,7 @@ const DonatePage = () => {
                   <div className="w-px h-3 bg-border/20" />
                   <div className="flex items-center gap-1.5 text-muted-foreground/40">
                     <Wallet className="w-3 h-3" />
-                    <span className="text-[10px] uppercase tracking-wider">QRISMU</span>
+                    <span className="text-[10px] uppercase tracking-wider">iPaymu</span>
                   </div>
                   <div className="w-px h-3 bg-border/20" />
                   <div className="flex items-center gap-1.5 text-muted-foreground/40">

@@ -6,21 +6,19 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
-const QRISMU_BASE_URL = "https://api.qrismu.app/api/v1";
-
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
 
   try {
-    const QRISMU_API_KEY = Deno.env.get("QRISMU_API_KEY");
-    const QRISMU_SECRET_KEY = Deno.env.get("QRISMU_SECRET_KEY");
+    const IPAYMU_API_KEY = Deno.env.get("IPAYMU_API_KEY");
+    const IPAYMU_VA = Deno.env.get("IPAYMU_VA");
     const SUPABASE_URL = Deno.env.get("SUPABASE_URL");
     const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
 
-    if (!QRISMU_API_KEY) throw new Error("QRISMU_API_KEY not configured");
-    if (!QRISMU_SECRET_KEY) throw new Error("QRISMU_SECRET_KEY not configured");
+    if (!IPAYMU_API_KEY) throw new Error("IPAYMU_API_KEY not configured");
+    if (!IPAYMU_VA) throw new Error("IPAYMU_VA not configured");
     if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) throw new Error("Supabase env not configured");
 
     const { donorName, email, message, amount } = await req.json();
@@ -54,57 +52,68 @@ serve(async (req) => {
 
     const orderId = `DEIMOS-${Date.now()}-${Math.random().toString(36).substring(2, 8)}`;
 
-    // Add standard QRIS MDR fee (0.7%)
-    const FEE_PERCENTAGE = 0.007;
-    const fee = Math.ceil(amount * FEE_PERCENTAGE);
-    const chargedAmount = amount + fee;
+    // iPaymu sandbox URL
+    const IPAYMU_BASE_URL = "https://sandbox.ipaymu.com/api/v2/payment/direct";
 
-    // Build QRISMU signature: HMAC-SHA256(secret_key, timestamp + METHOD + path + body)
-    const timestamp = new Date().toISOString();
-    const method = "POST";
-    const path = "/api/v1/transactions";
+    // Callback URL for iPaymu webhook
+    const notifyUrl = `${SUPABASE_URL}/functions/v1/payment-callback`;
+
     const bodyObj = {
-      order_id: orderId,
-      amount: chargedAmount,
-      customer_name: donorName.trim().substring(0, 50),
-      customer_email: email?.trim() || undefined,
-      expiry_minutes: 30,
+      name: donorName.trim().substring(0, 50),
+      phone: "08000000000",
+      email: email.trim(),
+      amount: amount,
+      notifyUrl: notifyUrl,
+      referenceId: orderId,
+      paymentMethod: "qris",
+      paymentChannel: "qris",
+      comments: message?.trim().substring(0, 500) || "Donasi untuk DEIMOS",
     };
+
     const bodyStr = JSON.stringify(bodyObj);
 
-    const payload = timestamp + method + path + bodyStr;
+    // iPaymu signature: HMAC-SHA256(apikey, "POST:" + va + ":" + SHA256(body) + ":" + apikey)
     const encoder = new TextEncoder();
+    const bodyHash = Array.from(
+      new Uint8Array(await crypto.subtle.digest("SHA-256", encoder.encode(bodyStr)))
+    ).map(b => b.toString(16).padStart(2, "0")).join("");
+
+    const stringToSign = `POST:${IPAYMU_VA}:${bodyHash}:${IPAYMU_API_KEY}`;
+
     const key = await crypto.subtle.importKey(
       "raw",
-      encoder.encode(QRISMU_SECRET_KEY),
+      encoder.encode(IPAYMU_API_KEY),
       { name: "HMAC", hash: "SHA-256" },
       false,
       ["sign"]
     );
-    const sigBuffer = await crypto.subtle.sign("HMAC", key, encoder.encode(payload));
+    const sigBuffer = await crypto.subtle.sign("HMAC", key, encoder.encode(stringToSign));
     const signature = Array.from(new Uint8Array(sigBuffer)).map(b => b.toString(16).padStart(2, "0")).join("");
 
-    console.log("Creating QRISMU transaction for order:", orderId);
+    const timestamp = new Date().toISOString().replace(/[-:T]/g, "").substring(0, 14);
 
-    const qrismuRes = await fetch(`${QRISMU_BASE_URL}/transactions`, {
+    console.log("Creating iPaymu QRIS transaction for order:", orderId);
+
+    const ipaymuRes = await fetch(IPAYMU_BASE_URL, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "X-API-Key": QRISMU_API_KEY,
-        "X-Timestamp": timestamp,
-        "X-Signature": signature,
+        "Accept": "application/json",
+        "va": IPAYMU_VA,
+        "signature": signature,
+        "timestamp": timestamp,
       },
       body: bodyStr,
     });
 
-    const qrismuData = await qrismuRes.json();
+    const ipaymuData = await ipaymuRes.json();
 
-    if (!qrismuRes.ok || qrismuData.status !== "success") {
-      console.error("QRISMU API error:", JSON.stringify(qrismuData));
-      throw new Error(`QRISMU API error [${qrismuRes.status}]: ${qrismuData.message || JSON.stringify(qrismuData)}`);
+    if (!ipaymuRes.ok || ipaymuData.Status !== 200) {
+      console.error("iPaymu API error:", JSON.stringify(ipaymuData));
+      throw new Error(`iPaymu API error [${ipaymuRes.status}]: ${ipaymuData.Message || JSON.stringify(ipaymuData)}`);
     }
 
-    const txData = qrismuData.data;
+    const txData = ipaymuData.Data;
 
     // Store pending donation in database
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
@@ -114,12 +123,12 @@ serve(async (req) => {
       email: email?.trim().substring(0, 255) || null,
       message: message?.trim().substring(0, 500) || null,
       amount,
-      fee,
+      fee: 0,
       amount_received: amount,
-      reference: txData.transaction_id || "",
+      reference: String(txData.TransactionId || ""),
       merchant_order_id: orderId,
-      transaction_id: txData.transaction_id,
-      qris_url: txData.qris_url || null,
+      transaction_id: String(txData.TransactionId || ""),
+      qris_url: txData.QrImage || txData.QrUrl || null,
       status: "PENDING",
     });
 
@@ -128,15 +137,16 @@ serve(async (req) => {
       throw new Error("Failed to store donation");
     }
 
-    console.log("QRISMU transaction created:", orderId, txData.transaction_id);
+    console.log("iPaymu transaction created:", orderId, txData.TransactionId);
 
     return new Response(
       JSON.stringify({
-        transactionId: txData.transaction_id,
+        transactionId: String(txData.TransactionId),
         orderId,
-        qrisBase64: txData.qris_base64,
-        qrisUrl: txData.qris_url,
-        expiresAt: txData.expires_at,
+        qrisUrl: txData.QrImage || txData.QrUrl || null,
+        qrisString: txData.QrString || null,
+        sessionId: txData.SessionId || null,
+        expiresAt: null,
       }),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
