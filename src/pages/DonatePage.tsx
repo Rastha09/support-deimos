@@ -284,8 +284,8 @@ const DonatePage = () => {
         body: { donorName: form.donorName.trim().substring(0, 100), email: form.email.trim().substring(0, 255), message: form.message.trim().substring(0, 500), amount: selectedAmount },
       });
       if (error) throw error;
-      if (data?.qrisBase64) {
-        setQrisData({ qrisBase64: data.qrisBase64, orderId: data.orderId, transactionId: data.transactionId, expiresAt: data.expiresAt });
+      if (data?.qrisUrl) {
+        setQrisData({ qrisUrl: data.qrisUrl, orderId: data.orderId, transactionId: data.transactionId });
         setPaymentStatus("pending");
         startPolling(data.orderId, data.transactionId || "");
       } else throw new Error("Tidak dapat membuat pembayaran QRIS");
