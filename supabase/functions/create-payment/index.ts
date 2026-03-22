@@ -52,8 +52,8 @@ serve(async (req) => {
 
     const orderId = `DEIMOS-${Date.now()}-${Math.random().toString(36).substring(2, 8)}`;
 
-    // iPaymu sandbox URL
-    const IPAYMU_BASE_URL = "https://sandbox.ipaymu.com/api/v2/payment/direct";
+    // iPaymu production URL
+    const IPAYMU_BASE_URL = "https://my.ipaymu.com/api/v2/payment/direct";
 
     // Callback URL for iPaymu webhook
     const notifyUrl = `${SUPABASE_URL}/functions/v1/payment-callback`;
