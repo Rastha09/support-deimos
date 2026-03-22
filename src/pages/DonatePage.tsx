@@ -87,20 +87,18 @@ const DonatePage = () => {
   }, [qrisData, paymentStatus]);
 
   const handleSaveQris = useCallback(async () => {
-    if (!qrisData?.qrisBase64) return;
+    if (!qrisData?.qrisUrl) return;
     try {
-      const res = await fetch(qrisData.qrisBase64);
+      const res = await fetch(qrisData.qrisUrl);
       const blob = await res.blob();
       const file = new File([blob], `QRIS-${qrisData.orderId}.png`, { type: "image/png" });
 
-      // Try Web Share API first (works in Telegram, WhatsApp, etc.)
       if (navigator.share && navigator.canShare?.({ files: [file] })) {
         await navigator.share({ files: [file], title: "QRIS Payment" });
         toast({ title: "Berhasil", description: "QR code berhasil dibagikan" });
         return;
       }
 
-      // Fallback: open image in new tab (works in most in-app browsers)
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
@@ -109,9 +107,8 @@ const DonatePage = () => {
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
-      // Delay revoke so the download/tab can start
       setTimeout(() => URL.revokeObjectURL(url), 5000);
-      toast({ title: "Berhasil", description: "QR code berhasil disimpan. Jika tidak terunduh, tekan lama gambar untuk menyimpan." });
+      toast({ title: "Berhasil", description: "QR code berhasil disimpan." });
     } catch {
       toast({ title: "Gagal", description: "Tidak dapat menyimpan gambar", variant: "destructive" });
     }
