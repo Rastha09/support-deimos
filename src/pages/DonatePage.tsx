@@ -345,7 +345,7 @@ const DonatePage = () => {
                   transition={{ delay: 0.3 }}
                   className="text-3xl font-bold font-display text-foreground"
                 >
-                   {formatRupiah(selectedAmount + Math.ceil(selectedAmount * 0.007))}
+                   {formatRupiah(selectedAmount)}
                 </motion.h2>
 
                 {/* QR Code with glow frame */}
