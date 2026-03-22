@@ -65,7 +65,7 @@ const DonatePage = () => {
   const [agreed, setAgreed] = useState(false);
 
   const [qrisData, setQrisData] = useState<{
-    qrisBase64: string; orderId: string; transactionId: string; expiresAt: string;
+    qrisUrl: string; orderId: string; transactionId: string;
   } | null>(null);
   const [paymentStatus, setPaymentStatus] = useState<string>("pending");
   const [polling, setPolling] = useState(false);
