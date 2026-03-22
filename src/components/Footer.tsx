@@ -81,9 +81,6 @@ const Footer = () => {
           <p className="text-[11px] text-muted-foreground/40">
             © {new Date().getFullYear()} DEIMOS. All rights reserved.
           </p>
-          <p className="text-[11px] text-muted-foreground/30">
-            Powered by QRISMU
-          </p>
         </div>
       </div>
     </footer>
