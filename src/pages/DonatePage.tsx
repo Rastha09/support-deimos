@@ -644,7 +644,7 @@ const DonatePage = () => {
                   <div className="w-px h-3 bg-border/20" />
                   <div className="flex items-center gap-1.5 text-muted-foreground/40">
                     <Wallet className="w-3 h-3" />
-                    <span className="text-[10px] uppercase tracking-wider">QRISMU</span>
+                    <span className="text-[10px] uppercase tracking-wider">iPaymu</span>
                   </div>
                   <div className="w-px h-3 bg-border/20" />
                   <div className="flex items-center gap-1.5 text-muted-foreground/40">
