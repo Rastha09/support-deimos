@@ -6,21 +6,19 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
-const QRISMU_BASE_URL = "https://api.qrismu.app/api/v1";
-
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
 
   try {
-    const QRISMU_API_KEY = Deno.env.get("QRISMU_API_KEY");
-    const QRISMU_SECRET_KEY = Deno.env.get("QRISMU_SECRET_KEY");
+    const IPAYMU_API_KEY = Deno.env.get("IPAYMU_API_KEY");
+    const IPAYMU_VA = Deno.env.get("IPAYMU_VA");
     const SUPABASE_URL = Deno.env.get("SUPABASE_URL");
     const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
 
-    if (!QRISMU_API_KEY) throw new Error("QRISMU_API_KEY not configured");
-    if (!QRISMU_SECRET_KEY) throw new Error("QRISMU_SECRET_KEY not configured");
+    if (!IPAYMU_API_KEY) throw new Error("IPAYMU_API_KEY not configured");
+    if (!IPAYMU_VA) throw new Error("IPAYMU_VA not configured");
     if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) throw new Error("Supabase env not configured");
 
     const { transactionId } = await req.json();
@@ -31,53 +29,72 @@ serve(async (req) => {
       });
     }
 
-    // Build signature for GET request
-    const timestamp = new Date().toISOString();
-    const method = "GET";
-    const path = `/api/v1/transactions/${transactionId}`;
-    const bodyStr = "";
+    // iPaymu check transaction endpoint
+    const url = "https://sandbox.ipaymu.com/api/v2/transaction";
 
-    const payload = timestamp + method + path + bodyStr;
+    const bodyObj = { transactionId: Number(transactionId) };
+    const bodyStr = JSON.stringify(bodyObj);
+
+    // Generate signature
     const encoder = new TextEncoder();
+    const bodyHash = Array.from(
+      new Uint8Array(await crypto.subtle.digest("SHA-256", encoder.encode(bodyStr)))
+    ).map(b => b.toString(16).padStart(2, "0")).join("");
+
+    const stringToSign = `POST:${IPAYMU_VA}:${bodyHash}:${IPAYMU_API_KEY}`;
+
     const key = await crypto.subtle.importKey(
       "raw",
-      encoder.encode(QRISMU_SECRET_KEY),
+      encoder.encode(IPAYMU_API_KEY),
       { name: "HMAC", hash: "SHA-256" },
       false,
       ["sign"]
     );
-    const sigBuffer = await crypto.subtle.sign("HMAC", key, encoder.encode(payload));
+    const sigBuffer = await crypto.subtle.sign("HMAC", key, encoder.encode(stringToSign));
     const signature = Array.from(new Uint8Array(sigBuffer)).map(b => b.toString(16).padStart(2, "0")).join("");
 
-    const qrismuRes = await fetch(`${QRISMU_BASE_URL}/transactions/${transactionId}`, {
-      method: "GET",
+    const timestamp = new Date().toISOString().replace(/[-:T]/g, "").substring(0, 14);
+
+    const ipaymuRes = await fetch(url, {
+      method: "POST",
       headers: {
-        "X-API-Key": QRISMU_API_KEY,
-        "X-Timestamp": timestamp,
-        "X-Signature": signature,
+        "Content-Type": "application/json",
+        "Accept": "application/json",
+        "va": IPAYMU_VA,
+        "signature": signature,
+        "timestamp": timestamp,
       },
+      body: bodyStr,
     });
 
-    const qrismuData = await qrismuRes.json();
+    const ipaymuData = await ipaymuRes.json();
 
-    if (!qrismuRes.ok) {
-      console.error("QRISMU check status error:", JSON.stringify(qrismuData));
-      throw new Error(`QRISMU API error [${qrismuRes.status}]`);
+    if (!ipaymuRes.ok) {
+      console.error("iPaymu check status error:", JSON.stringify(ipaymuData));
+      throw new Error(`iPaymu API error [${ipaymuRes.status}]`);
     }
 
-    const txData = qrismuData.data;
-    const status = txData?.status || "unknown";
+    const txData = ipaymuData.Data;
+    // iPaymu status values: 1 = pending, 0 = expired/failed, 6 = refund, 1 with PaidStatus = success
+    // Status field in response: "berhasil" / "pending" / "expired" / "canceled"
+    const rawStatus = String(txData?.Status || txData?.StatusDesc || "unknown").toLowerCase();
+    
+    let status = "pending";
+    if (rawStatus === "berhasil" || rawStatus === "1" || rawStatus === "success") {
+      status = "paid";
+    } else if (rawStatus === "expired" || rawStatus === "canceled" || rawStatus === "0") {
+      status = rawStatus === "0" ? "expired" : rawStatus;
+    }
 
-    // Update database if status changed to paid/expired/failed
-    if (status === "paid" || status === "expired" || status === "failed") {
+    // Update database if status changed
+    if (status === "paid" || status === "expired" || status === "canceled") {
       const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
       const dbStatus = status === "paid" ? "SUCCESS" : status === "expired" ? "EXPIRED" : "FAILED";
 
-      // Get current donation data before update (to check if status actually changed)
       const { data: currentDonation } = await supabase
         .from("donations")
         .select("status, email, donor_name, amount, merchant_order_id")
-        .eq("transaction_id", transactionId)
+        .eq("transaction_id", String(transactionId))
         .maybeSingle();
 
       const statusChanged = currentDonation && currentDonation.status !== dbStatus;
@@ -86,17 +103,17 @@ serve(async (req) => {
         .from("donations")
         .update({
           status: dbStatus,
-          fee: txData.fee || 0,
-          amount_received: txData.amount_received || 0,
-          paid_at: txData.paid_at || null,
+          fee: txData?.Fee || 0,
+          amount_received: txData?.ReceivedAmount || txData?.Amount || 0,
+          paid_at: txData?.PaidDate || null,
           updated_at: new Date().toISOString(),
         })
-        .eq("transaction_id", transactionId);
+        .eq("transaction_id", String(transactionId));
 
       // Send email notification if status changed and email exists
       if (statusChanged && currentDonation?.email) {
         try {
-          const emailRes = await fetch(`${SUPABASE_URL}/functions/v1/send-email`, {
+          await fetch(`${SUPABASE_URL}/functions/v1/send-email`, {
             method: "POST",
             headers: {
               "Content-Type": "application/json",
@@ -108,11 +125,9 @@ serve(async (req) => {
               amount: currentDonation.amount,
               status: dbStatus,
               orderId: currentDonation.merchant_order_id,
-              paidAt: txData.paid_at || null,
+              paidAt: txData?.PaidDate || null,
             }),
           });
-          const emailData = await emailRes.json();
-          console.log("Email notification sent:", emailData);
         } catch (emailErr) {
           console.error("Failed to send email notification:", emailErr);
         }
